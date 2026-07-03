@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Magic Prospekt · Flyer CMS</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --border:#e3e6ec; --border2:#d3d8e0;
+    --text:#1c2733; --muted:#68737f; --accent:#0b6e4f; --accent-h:#095c42;
+    --danger:#b3261e; --amber:#9a6700; --blue:#0b57d0; --purple:#6d28d9;
+    --chip-grey-bg:#eef1f4; --chip-grey-tx:#5b6672;
+    --chip-green-bg:#e3f3ea; --chip-green-tx:#116644;
+    --chip-amber-bg:#fdf3d7; --chip-amber-tx:#8a5b00;
+    --chip-red-bg:#fbe9e7; --chip-red-tx:#a72217;
+    --chip-blue-bg:#e6effd; --chip-blue-tx:#0b47a8;
+    --chip-purple-bg:#f0e9fd; --chip-purple-tx:#5a21b5;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:13.5px; line-height:1.45;
+  }
+  button{font:inherit}
+  h1,h2,h3{margin:0 0 10px}
+  pre{margin:0; white-space:pre-wrap; word-break:break-word; font-size:12px}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+  a{color:var(--blue)}
+
+  /* ---------- layout ---------- */
+  header.app{
+    position:sticky; top:0; z-index:30; background:var(--panel);
+    border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:18px; padding:0 18px; height:52px;
+  }
+  .brand{font-weight:700; font-size:15px; white-space:nowrap}
+  .brand span{color:var(--muted); font-weight:500}
+  nav.tabs{display:flex; gap:2px; height:100%}
+  nav.tabs button{
+    border:none; background:none; padding:0 14px; cursor:pointer; color:var(--muted);
+    border-bottom:2px solid transparent; height:100%; font-weight:600;
+  }
+  nav.tabs button.active{color:var(--accent); border-bottom-color:var(--accent)}
+  .user{margin-left:auto; display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12.5px}
+  main{padding:18px; max-width:1500px; margin:0 auto}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:14px}
+  .toolbar{display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap}
+  .spacer{flex:1}
+  .muted{color:var(--muted)}
+  .small{font-size:12px}
+  .nowrap{white-space:nowrap}
+
+  /* ---------- buttons ---------- */
+  .btn{
+    background:var(--panel); border:1px solid var(--border2); color:var(--text);
+    border-radius:7px; padding:6px 12px; cursor:pointer; font-weight:600; font-size:12.5px;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn:hover:not(:disabled){background:#f2f4f7}
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+  .btn-primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn-primary:hover:not(:disabled){background:var(--accent-h)}
+  .btn-danger{color:var(--danger); border-color:#e7c4c1}
+  .btn-approve{color:var(--accent); border-color:#bcdccd}
+  .btn-xs{padding:3px 8px; font-size:12px; border-radius:6px}
+  .sp{
+    width:12px; height:12px; border:2px solid #c9d1da; border-top-color:var(--accent);
+    border-radius:50%; display:inline-block; animation:spin .8s linear infinite; flex:none;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---------- chips ---------- */
+  .chip{
+    display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700;
+    background:var(--chip-grey-bg); color:var(--chip-grey-tx); white-space:nowrap;
+  }
+  .st-registered{background:var(--chip-grey-bg); color:var(--chip-grey-tx)}
+  .st-fetched{background:var(--chip-blue-bg); color:var(--chip-blue-tx)}
+  .st-parsing,.st-reviewing{background:var(--chip-amber-bg); color:var(--chip-amber-tx)}
+  .st-parsed{background:#dff1f0; color:#0d6b66}
+  .st-needs_vision{background:var(--chip-purple-bg); color:var(--chip-purple-tx)}
+  .st-approved,.st-auto_approved{background:var(--chip-green-bg); color:var(--chip-green-tx)}
+  .st-promoted{background:#0b6e4f; color:#fff}
+  .st-failed,.st-rejected{background:var(--chip-red-bg); color:var(--chip-red-tx)}
+  .st-pending{background:var(--chip-amber-bg); color:var(--chip-amber-tx)}
+  .chip-anom{background:var(--chip-red-bg); color:var(--chip-red-tx); font-weight:600}
+  .chip-warn{background:var(--chip-amber-bg); color:var(--chip-amber-tx)}
+  .chip-edited{background:var(--chip-blue-bg); color:var(--chip-blue-tx)}
+  .ok{color:var(--accent); font-weight:700}
+  .bad{color:var(--danger); font-weight:700}
+
+  /* ---------- tables ---------- */
+  table.list{width:100%; border-collapse:collapse}
+  table.list th{
+    text-align:left; font-size:11px; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--muted); font-weight:700; padding:6px 8px; border-bottom:1px solid var(--border);
+  }
+  table.list td{padding:7px 8px; border-bottom:1px solid var(--border); vertical-align:top}
+  table.list tr:last-child td{border-bottom:none}
+  table.list tr:hover td{background:#fafbfc}
+  .actions{display:flex; gap:5px; flex-wrap:wrap}
+
+  /* availability grid */
+  table.avail{border-collapse:collapse}
+  table.avail th, table.avail td{padding:4px 10px; text-align:center; font-size:12px; border-bottom:1px solid var(--border)}
+  table.avail th:first-child, table.avail td:first-child{text-align:left; color:var(--muted); font-weight:600}
+  table.avail tr:last-child td{border-bottom:none}
+  .av-yes{color:var(--accent); font-weight:700}
+  .av-no{color:#c2c9d2}
+
+  /* ---------- auth ---------- */
+  .auth-wrap{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px}
+  /* [hidden] must always win over class display rules (flex/grid). */
+  [hidden]{display:none !important}
+  .auth-card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:28px; width:360px; max-width:100%}
+  .auth-card h1{font-size:17px}
+  .auth-card label{display:block; margin:12px 0 4px; font-weight:600; font-size:12.5px}
+  .auth-card .row{display:flex; gap:8px; margin-top:16px}
+  .auth-card .row .btn{flex:1; justify-content:center}
+  input[type=text],input[type=email],input[type=password],input[type=number],input[type=date],select,textarea{
+    width:100%; border:1px solid var(--border2); border-radius:7px; padding:6px 8px;
+    font:inherit; background:#fff; color:var(--text);
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid #b9d8cc; border-color:var(--accent)}
+
+  /* ---------- toast ---------- */
+  #toasts{position:fixed; right:16px; bottom:16px; z-index:100; display:flex; flex-direction:column; gap:8px; max-width:420px}
+  .toast{
+    background:#22303c; color:#fff; border-radius:9px; padding:10px 14px; font-size:12.5px;
+    box-shadow:0 6px 20px rgba(0,0,0,.25); cursor:pointer; word-break:break-word;
+    border-left:4px solid var(--muted);
+  }
+  .toast.error{border-left-color:#ff6b5e; background:#3a201d}
+  .toast.success{border-left-color:#4ade80; background:#15342a}
+  .toast.info{border-left-color:#8ab4f8}
+
+  /* ---------- modal ---------- */
+  .modal-bg{position:fixed; inset:0; background:rgba(20,28,36,.45); z-index:50; display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto}
+  .modal{background:var(--panel); border-radius:12px; padding:22px; width:460px; max-width:100%}
+  .modal h2{font-size:15px}
+  .modal label{display:block; margin:10px 0 3px; font-weight:600; font-size:12.5px}
+  .modal .mrow{display:flex; gap:10px}
+  .modal .mrow > div{flex:1}
+  .modal .mfoot{display:flex; gap:8px; justify-content:flex-end; margin-top:18px}
+  .hint{font-size:11.5px; color:var(--amber); min-height:14px}
+
+  /* ---------- review ---------- */
+  .review-body{display:flex; gap:14px; align-items:flex-start}
+  .pdf-pane{flex:none; width:704px; max-width:55vw; position:sticky; top:64px; padding:8px}
+  .pdf-wrap{position:relative; line-height:0}
+  .pdf-wrap canvas{border:1px solid var(--border); border-radius:4px; max-width:100%}
+  #pdfOverlay{position:absolute; inset:0; line-height:normal}
+  .bbox-chip{
+    position:absolute; min-width:20px; height:20px; padding:0 4px; border-radius:10px;
+    background:var(--accent); color:#fff; font-size:11px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    box-shadow:0 1px 4px rgba(0,0,0,.35); transform:translate(-3px,-3px); z-index:2;
+  }
+  .bbox-chip.hot{background:var(--danger); transform:translate(-3px,-3px) scale(1.25); z-index:3}
+  .offer-pane{flex:1; min-width:400px}
+  .offer-card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:10px}
+  .offer-card.flash{outline:3px solid #f4b7b0; transition:outline .2s}
+  .offer-head{display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:8px}
+  .tile-no{
+    width:22px; height:22px; border-radius:11px; background:var(--accent); color:#fff;
+    display:inline-flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:700; flex:none;
+  }
+  .fgrid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
+  .fld{display:block; font-size:11px; color:var(--muted); font-weight:600}
+  .fld input,.fld textarea{margin-top:2px; font-size:12.5px; padding:4px 7px}
+  .fld.w2{grid-column:span 2}
+  .fld.w3{grid-column:span 3}
+  .fld.chk{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text); padding-top:16px}
+  .fld.chk input{width:auto; margin:0}
+  .offer-card details{margin-top:8px}
+  .offer-card summary{cursor:pointer; font-size:12px; color:var(--muted)}
+  .offer-card details pre{background:#f7f8fa; border:1px solid var(--border); border-radius:6px; padding:8px; margin-top:5px}
+  .offer-actions{display:flex; gap:8px; margin-top:10px}
+  #revCounts .chip{margin-left:4px}
+
+  /* ---------- config / runs ---------- */
+  .cfg-row{margin-bottom:14px}
+  .cfg-row textarea{font-family:ui-monospace,Consolas,monospace; font-size:12px}
+  .cfg-head{display:flex; align-items:center; gap:10px; margin-bottom:5px}
+  .cfg-err{color:var(--danger); font-size:11.5px; min-height:14px}
+  .runs-log pre{max-height:280px; overflow:auto; background:#f7f8fa; border:1px solid var(--border); border-radius:6px; padding:8px}
+  details.inline summary{cursor:pointer; color:var(--blue); font-size:12px}
+</style>
+</head>
+<body>
+
+<div id="toasts"></div>
+
+<!-- ============ AUTH ============ -->
+<div id="authView" class="auth-wrap" hidden>
+  <div class="auth-card">
+    <h1>Magic Prospekt · Flyer CMS</h1>
+    <p class="muted small" style="margin:4px 0 0">Admin-Zugang für die Prospekt-Pipeline.</p>
+    <label for="authEmail">E-Mail</label>
+    <input id="authEmail" type="email" autocomplete="username">
+    <label for="authPw">Passwort</label>
+    <input id="authPw" type="password" autocomplete="current-password">
+    <div class="row">
+      <button id="btnLogin" class="btn btn-primary">Anmelden</button>
+      <button id="btnSignup" class="btn">Registrieren</button>
+    </div>
+    <p id="authMsg" class="muted small" style="min-height:16px; margin:12px 0 0"></p>
+  </div>
+</div>
+
+<!-- ============ NOT ADMIN ============ -->
+<div id="notAdminView" class="auth-wrap" hidden>
+  <div class="auth-card">
+    <h1>Kein Admin-Zugang</h1>
+    <p>Dieses Konto ist nicht als Admin freigeschaltet (flyer_admins).</p>
+    <p class="muted small" id="notAdminEmail"></p>
+    <p class="muted small" id="notAdminErr"></p>
+    <div class="row"><button id="btnLogout2" class="btn">Abmelden</button></div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="appView" hidden>
+  <header class="app">
+    <div class="brand">Magic Prospekt <span>· Flyer CMS</span></div>
+    <nav class="tabs" id="tabNav">
+      <button data-tab="prospekte" class="active">Prospekte</button>
+      <button data-tab="review">Review</button>
+      <button data-tab="config">Konfiguration</button>
+      <button data-tab="runs">Läufe</button>
+    </nav>
+    <div class="user"><span id="userEmail"></span><button id="btnLogout" class="btn btn-xs">Abmelden</button></div>
+  </header>
+
+  <main>
+    <!-- ------ Prospekte ------ -->
+    <section id="tab-prospekte">
+      <div class="toolbar">
+        <button id="btnDiscover" class="btn btn-primary">Lidl entdecken</button>
+        <button id="btnUploadOpen" class="btn">PDF hochladen</button>
+        <span class="spacer"></span>
+        <button id="btnRefresh" class="btn" title="Aktualisieren">&#10227; Aktualisieren</button>
+      </div>
+      <div class="card">
+        <h3 style="font-size:13px">Verfügbarkeit (aktuelle + nächste Woche)</h3>
+        <div id="availGrid" style="overflow-x:auto"></div>
+        <p class="muted small" style="margin:8px 0 0">Kaufland läuft über den nativen SSR-Crawler (beide Wochenzyklen), nicht über PDFs.</p>
+      </div>
+      <div class="card" style="overflow-x:auto">
+        <div id="flyerTableWrap"><p class="muted">Lade…</p></div>
+      </div>
+    </section>
+
+    <!-- ------ Review ------ -->
+    <section id="tab-review" hidden>
+      <div class="toolbar">
+        <select id="revFlyerSel" style="width:auto; max-width:420px"></select>
+        <button id="revPrev" class="btn" title="Vorherige Seite">&lsaquo;</button>
+        <span id="revPageLabel" class="nowrap muted">Seite –</span>
+        <button id="revNext" class="btn" title="Nächste Seite">&rsaquo;</button>
+        <span class="spacer"></span>
+        <span id="revCounts"></span>
+        <button id="btnApproveClean" class="btn btn-primary">Alle sauberen auf Seite freigeben</button>
+        <button class="btn" disabled title="Kommt in Phase 4 — flyer-promote">In App übernehmen (Phase 4)</button>
+      </div>
+      <div class="review-body">
+        <div class="pdf-pane card">
+          <div class="pdf-wrap">
+            <canvas id="pdfCanvas" width="0" height="0"></canvas>
+            <div id="pdfOverlay"></div>
+          </div>
+          <p id="pdfMsg" class="muted small" style="margin:6px 2px 0"></p>
+        </div>
+        <div id="offerPane" class="offer-pane"><p class="muted">Prospekt wählen.</p></div>
+      </div>
+    </section>
+
+    <!-- ------ Konfiguration ------ -->
+    <section id="tab-config" hidden>
+      <div class="card"><div id="cfgWrap"><p class="muted">Lade…</p></div></div>
+    </section>
+
+    <!-- ------ Läufe ------ -->
+    <section id="tab-runs" hidden>
+      <div class="card" style="overflow-x:auto"><div id="runsWrap"><p class="muted">Lade…</p></div></div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ UPLOAD MODAL ============ -->
+<div id="uploadModal" class="modal-bg" hidden>
+  <div class="modal">
+    <h2>PDF hochladen</h2>
+    <form id="uploadForm">
+      <label>Datei (PDF)</label>
+      <input type="file" id="upFile" accept="application/pdf" required>
+      <div class="mrow">
+        <div>
+          <label>Retailer</label>
+          <select id="upRetailer" required>
+            <option value="aldi_sued">Aldi Süd</option>
+            <option value="aldi_nord">Aldi Nord</option>
+            <option value="penny">Penny</option>
+            <option value="netto_md">Netto MD</option>
+            <option value="edeka">EDEKA</option>
+            <option value="rewe">REWE</option>
+            <option value="globus">Globus</option>
+            <option value="lidl">Lidl</option>
+            <option value="kaufland">Kaufland</option>
+          </select>
+        </div>
+        <div>
+          <label>Woche (Montag)</label>
+          <input type="date" id="upWeek" required>
+          <div class="hint" id="upWeekHint"></div>
+        </div>
+      </div>
+      <label>Titel</label>
+      <input type="text" id="upTitle" required placeholder="z. B. Handzettel KW 27">
+      <div class="mrow">
+        <div><label>Gültig von</label><input type="date" id="upFrom" required></div>
+        <div><label>Gültig bis</label><input type="date" id="upTo" required></div>
+      </div>
+      <div class="mrow">
+        <div>
+          <label>Region</label>
+          <select id="upScope"><option value="national">national</option><option value="regional">regional</option></select>
+        </div>
+        <div><label>Region-Notiz (optional)</label><input type="text" id="upRegionNote" placeholder="z. B. Südwest"></div>
+      </div>
+      <div class="mrow">
+        <div><label>Viewer-URL (optional — Online-Prospekt des Händlers, für den App-Deep-Link)</label><input type="url" id="upViewerUrl" placeholder="https://www.aldi-sued.de/…/prospekte/…"></div>
+      </div>
+      <div class="mfoot">
+        <button type="button" class="btn" id="upCancel">Abbrechen</button>
+        <button type="submit" class="btn btn-primary" id="upSubmit">Hochladen</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4/legacy/build/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4/legacy/build/pdf.worker.min.mjs';
+
+const SUPABASE_URL = 'https://ssqoldrkrwcxmaqevmze.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzcW9sZHJrcndjeG1hcWV2bXplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMDU5NjYsImV4cCI6MjA5NDU4MTk2Nn0.6QvB9LXNXmvuhy3lNsEttKc8mreIM-ohPrpFA_pLrcI';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ================= helpers ================= */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s == null ? '' : String(s)
+  .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+const escAttr = (s) => esc(s).replaceAll('"','&quot;');
+
+function toast(msg, type = 'info', ms) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  el.onclick = () => el.remove();
+  $('toasts').appendChild(el);
+  setTimeout(() => el.remove(), ms ?? (type === 'error' ? 10000 : 5500));
+}
+function dbErr(prefix, error) { toast(prefix + ': ' + (error?.message || error), 'error'); }
+
+async function withBusy(btn, fn) {
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="sp"></span>' + orig;
+  try { await fn(); } finally { btn.disabled = false; btn.innerHTML = orig; }
+}
+
+async function invokeFn(name, body) {
+  const { data, error } = await supabase.functions.invoke(name, { body });
+  if (error) {
+    let msg = error.message || 'Edge-Funktion fehlgeschlagen';
+    try {
+      if (error.context && typeof error.context.json === 'function') {
+        const j = await error.context.json();
+        if (j && (j.error || j.message || j.detail)) msg = j.error || j.message || j.detail;
+      }
+    } catch (_) { /* body not json */ }
+    throw new Error(msg);
+  }
+  if (data && data.ok === false) throw new Error(data.error || data.detail || 'Funktion meldet ok=false');
+  return data;
+}
+
+const fmtDE = (s) => { if (!s) return '–'; const [y,m,d] = String(s).slice(0,10).split('-'); return `${d}.${m}.${y}`; };
+const fmtISO = (d) => { const p = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
+function mondayOf(date) { const x = new Date(date); x.setHours(0,0,0,0); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; }
+function isoWeek(d) {
+  const t = new Date(d.valueOf()); t.setHours(0,0,0,0);
+  t.setDate(t.getDate() + 3 - ((t.getDay()+6)%7));
+  const w1 = new Date(t.getFullYear(), 0, 4);
+  return 1 + Math.round(((t - w1)/86400000 - 3 + ((w1.getDay()+6)%7))/7);
+}
+function fmtBytes(b) {
+  if (b == null) return '–';
+  if (b > 1048576) return (b/1048576).toFixed(1) + ' MB';
+  if (b > 1024) return (b/1024).toFixed(0) + ' KB';
+  return b + ' B';
+}
+function fmtTs(s) { if (!s) return '–'; const d = new Date(s); return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+
+const RETAILERS = [
+  ['lidl','Lidl'],['kaufland','Kaufland'],['aldi_sued','Aldi Süd'],['aldi_nord','Aldi Nord'],
+  ['penny','Penny'],['netto_md','Netto MD'],['rewe','REWE'],['edeka','EDEKA'],['globus','Globus'],
+];
+const RETAILER_LABEL = Object.fromEntries(RETAILERS);
+const SOURCE_LABEL = { schwarz_api: 'Schwarz API', manual_upload: 'Manuell' };
+
+/* ================= state ================= */
+const state = {
+  flyers: [],
+  agg: {},           // flyer_id -> {pending,approved,rejected,anom,total}
+  tab: 'prospekte',
+  configLoaded: false,
+};
+const rowBusy = new Map(); // flyer_id -> {start:ms, label:string}
+setInterval(() => {
+  document.querySelectorAll('.elapsed').forEach(el => {
+    const b = rowBusy.get(el.dataset.id);
+    if (b) el.textContent = Math.floor((Date.now() - b.start)/1000) + 's';
+  });
+}, 1000);
+
+/* ================= auth ================= */
+let lastUid = null;
+
+async function route() {
+  const { data: { session } } = await supabase.auth.getSession();
+  $('authView').hidden = true; $('notAdminView').hidden = true; $('appView').hidden = true;
+  if (!session) { lastUid = null; $('authView').hidden = false; return; }
+  lastUid = session.user.id;
+
+  const { data, error } = await supabase.from('flyer_admins').select('email');
+  if (error) {
+    $('notAdminView').hidden = false;
+    $('notAdminEmail').textContent = session.user.email || '';
+    $('notAdminErr').textContent = 'Fehler bei der Admin-Prüfung: ' + error.message;
+    dbErr('Admin-Prüfung', error);
+    return;
+  }
+  if (!data || data.length === 0) {
+    $('notAdminView').hidden = false;
+    $('notAdminEmail').textContent = session.user.email || '';
+    $('notAdminErr').textContent = '';
+    return;
+  }
+  $('appView').hidden = false;
+  $('userEmail').textContent = session.user.email || '';
+  await loadDashboard(true);
+}
+
+supabase.auth.onAuthStateChange((event, session) => {
+  const uid = session?.user?.id ?? null;
+  if (event === 'SIGNED_OUT' || event === 'SIGNED_IN' || uid !== lastUid) route();
+});
+
+$('btnLogin').onclick = () => withBusy($('btnLogin'), async () => {
+  $('authMsg').textContent = '';
+  const { error } = await supabase.auth.signInWithPassword({ email: $('authEmail').value.trim(), password: $('authPw').value });
+  if (error) { $('authMsg').textContent = error.message; dbErr('Anmeldung', error); }
+});
+$('btnSignup').onclick = () => withBusy($('btnSignup'), async () => {
+  $('authMsg').textContent = '';
+  const { data, error } = await supabase.auth.signUp({ email: $('authEmail').value.trim(), password: $('authPw').value });
+  if (error) { $('authMsg').textContent = error.message; dbErr('Registrierung', error); return; }
+  if (!data.session) $('authMsg').textContent = 'Registriert. Bitte ggf. E-Mail bestätigen und dann anmelden.';
+});
+const doLogout = async () => { const { error } = await supabase.auth.signOut(); if (error) dbErr('Abmelden', error); };
+$('btnLogout').onclick = doLogout;
+$('btnLogout2').onclick = doLogout;
+
+/* ================= tabs ================= */
+$('tabNav').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-tab]');
+  if (b) setTab(b.dataset.tab);
+});
+function setTab(name) {
+  state.tab = name;
+  document.querySelectorAll('#tabNav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  ['prospekte','review','config','runs'].forEach(t => { $('tab-' + t).hidden = (t !== name); });
+  if (name === 'config') loadConfig();
+  if (name === 'runs') loadRuns();
+  if (name === 'review') initReviewTab();
+}
+
+/* ================= dashboard ================= */
+async function loadDashboard(showLoading) {
+  if (showLoading) $('flyerTableWrap').innerHTML = '<p class="muted">Lade…</p>';
+  const [fRes, oRes] = await Promise.all([
+    supabase.from('flyer_registry').select('*')
+      .order('week_start', { ascending: false })
+      .order('valid_from', { ascending: false })
+      .order('retailer_id'),
+    supabase.from('flyer_offers_staged').select('flyer_id,status,anomalies'),
+  ]);
+  if (fRes.error) { dbErr('Prospekte laden', fRes.error); $('flyerTableWrap').innerHTML = '<p class="bad">Fehler beim Laden.</p>'; return; }
+  if (oRes.error) dbErr('Angebots-Zählung laden', oRes.error);
+
+  state.flyers = fRes.data || [];
+  state.agg = {};
+  for (const r of (oRes.data || [])) {
+    const a = state.agg[r.flyer_id] ||= { pending: 0, approved: 0, rejected: 0, anom: 0, total: 0 };
+    a.total++;
+    if (r.status === 'pending') a.pending++;
+    else if (r.status === 'approved' || r.status === 'auto_approved' || r.status === 'promoted') a.approved++;
+    else if (r.status === 'rejected') a.rejected++;
+    if (Array.isArray(r.anomalies) && r.anomalies.length > 0) a.anom++;
+  }
+  renderAvailability();
+  renderFlyerTable();
+  populateReviewSelector();
+}
+
+function renderAvailability() {
+  const m0 = mondayOf(new Date());
+  const m1 = new Date(m0); m1.setDate(m1.getDate() + 7);
+  const weeks = [m0, m1];
+  const has = (rid, mon) => {
+    const from = fmtISO(mon);
+    const end = new Date(mon); end.setDate(end.getDate() + 6);
+    const to = fmtISO(end);
+    return state.flyers.some(f => f.retailer_id === rid && f.week_start && f.week_start >= from && f.week_start <= to);
+  };
+  let html = '<table class="avail"><tr><th>Woche</th>' +
+    RETAILERS.map(([,l]) => `<th>${esc(l)}</th>`).join('') + '</tr>';
+  for (const w of weeks) {
+    html += `<tr><td class="nowrap">KW ${isoWeek(w)} · ab ${fmtDE(fmtISO(w))}</td>` +
+      RETAILERS.map(([rid]) => has(rid, w)
+        ? '<td class="av-yes">✓</td>' : '<td class="av-no">–</td>').join('') + '</tr>';
+  }
+  html += '</table>';
+  $('availGrid').innerHTML = html;
+}
+
+function renderFlyerTable() {
+  if (!state.flyers.length) {
+    $('flyerTableWrap').innerHTML = '<p class="muted">Keine Prospekte registriert. „Lidl entdecken“ oder „PDF hochladen“.</p>';
+    return;
+  }
+  const rows = state.flyers.map(f => {
+    const a = state.agg[f.id] || { pending: 0, approved: 0, rejected: 0, anom: 0, total: 0 };
+    const busy = rowBusy.get(f.id);
+    const statusChip = `<span class="chip st-${escAttr(f.status)}"${f.status === 'failed' && f.error ? ` title="${escAttr(f.error)}"` : ''}>${esc(f.status)}</span>`;
+    const region = esc(f.region_scope || '–') + (f.regions && f.regions.note ? ` <span class="muted small">(${esc(f.regions.note)})</span>` : '');
+    const offers = a.total === 0 ? '<span class="muted">–</span>' :
+      `<span class="chip st-pending" title="pending">${a.pending}</span> ` +
+      `<span class="chip st-approved" title="approved">${a.approved}</span> ` +
+      `<span class="chip st-rejected" title="rejected">${a.rejected}</span>` +
+      (a.anom > 0 ? ` <span class="chip chip-warn" title="Zeilen mit Anomalien">&#9888; ${a.anom}</span>` : '');
+
+    let actions;
+    if (busy) {
+      actions = `<span class="sp"></span> <span class="small muted">${esc(busy.label)}… <span class="elapsed" data-id="${escAttr(f.id)}">${Math.floor((Date.now()-busy.start)/1000)}s</span></span>`;
+    } else {
+      const btns = [];
+      if (f.source === 'schwarz_api' && !f.pdf_path)
+        btns.push(`<button class="btn btn-xs" data-action="download" data-id="${escAttr(f.id)}">Download</button>`);
+      if (f.pdf_path && !(f.pages_parsed > 0))
+        btns.push(`<button class="btn btn-xs btn-primary" data-action="parse" data-id="${escAttr(f.id)}">Parsen (3 S.)</button>`);
+      if (f.pdf_path && f.pages_parsed > 0)
+        btns.push(`<button class="btn btn-xs" data-action="parse" data-id="${escAttr(f.id)}">Neu parsen</button>`);
+      if (a.total > 0 || f.pdf_path)
+        btns.push(`<button class="btn btn-xs" data-action="review" data-id="${escAttr(f.id)}">Review öffnen</button>`);
+      btns.push(`<button class="btn btn-xs btn-danger" data-action="delete" data-id="${escAttr(f.id)}">Löschen</button>`);
+      actions = `<div class="actions">${btns.join('')}</div>`;
+    }
+    return `<tr>
+      <td class="nowrap"><strong>${esc(RETAILER_LABEL[f.retailer_id] || f.retailer_id)}</strong></td>
+      <td>${esc(f.title || '–')}${f.viewer_url ? ` <a href="${esc(f.viewer_url)}" target="_blank" rel="noopener" title="Online-Prospekt des Händlers öffnen">🔗</a>` : ''}${f.external_id ? `<div class="muted small">${esc(f.external_id)}</div>` : ''}</td>
+      <td class="nowrap">${f.week_start ? 'KW ' + isoWeek(new Date(f.week_start + 'T12:00:00')) + '<div class="muted small">' + fmtDE(f.week_start) + '</div>' : '–'}</td>
+      <td class="nowrap small">${fmtDE(f.valid_from)}<br>– ${fmtDE(f.valid_to)}</td>
+      <td>${region}</td>
+      <td class="nowrap">${esc(SOURCE_LABEL[f.source] || f.source || '–')}</td>
+      <td>${statusChip}</td>
+      <td class="nowrap">${f.pages_parsed ?? 0}/${f.page_count ?? '?'}${f.pdf_bytes ? `<div class="muted small">${fmtBytes(f.pdf_bytes)}</div>` : ''}</td>
+      <td class="nowrap">${offers}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+
+  $('flyerTableWrap').innerHTML = `<table class="list">
+    <tr><th>Retailer</th><th>Titel</th><th>Woche</th><th>Gültig</th><th>Region</th><th>Quelle</th><th>Status</th><th>Seiten</th><th>Angebote</th><th>Aktionen</th></tr>
+    ${rows}</table>`;
+}
+
+$('flyerTableWrap').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-action]');
+  if (!b) return;
+  const id = b.dataset.id;
+  const flyer = state.flyers.find(f => f.id === id);
+  if (!flyer) return;
+
+  if (b.dataset.action === 'download') {
+    rowBusy.set(id, { start: Date.now(), label: 'Download' });
+    renderFlyerTable();
+    try {
+      const d = await invokeFn('flyer-fetch', { action: 'download', flyer_id: id });
+      toast(`PDF geladen: ${d.path || ''} (${fmtBytes(d.bytes)})`, 'success');
+    } catch (err) { toast('Download fehlgeschlagen: ' + err.message, 'error'); }
+    rowBusy.delete(id);
+    await loadDashboard(false);
+  }
+  else if (b.dataset.action === 'parse') {
+    await runParse(id);
+  }
+  else if (b.dataset.action === 'review') {
+    setTab('review');
+    await loadReviewFlyer(id);
+  }
+  else if (b.dataset.action === 'delete') {
+    if (!confirm(`Prospekt „${flyer.title || flyer.retailer_id}“ löschen?\nGestagte Angebote werden mitgelöscht.`)) return;
+    const { error } = await supabase.from('flyer_registry').delete().eq('id', id);
+    if (error) { dbErr('Löschen', error); return; }
+    toast('Prospekt gelöscht.', 'success');
+    if (rev.flyerId === id) { rev.flyerId = null; rev.offers = []; rev.pdfDoc = null; }
+    await loadDashboard(false);
+  }
+});
+
+async function runParse(flyerId) {
+  if (rowBusy.has(flyerId)) return;
+  rowBusy.set(flyerId, { start: Date.now(), label: 'Parsen läuft' });
+  renderFlyerTable();
+  try {
+    // One page per invocation: a multi-page request can exceed the Supabase
+    // gateway's 150s idle timeout when the LLM is slow/busy. Page limit
+    // comes from the flyer's parse_limit (default 3).
+    const flyer = state.flyers.find((f) => f.id === flyerId);
+    const limit = (flyer && flyer.parse_limit) || 3;
+    let staged = 0, raster = 0, failures = 0, pageCount = null, status = null;
+    for (let p = 1; p <= limit; p++) {
+      if (pageCount != null && p > pageCount) break;
+      rowBusy.set(flyerId, { start: Date.now(), label: `Parse Seite ${p}/${limit}` });
+      renderFlyerTable();
+      const d = await invokeFn('flyer-parse', { flyer_id: flyerId, page_from: p, page_to: p });
+      staged += d.staged ?? 0;
+      raster += d.raster_pages ?? 0;
+      failures += d.llm_failures ?? 0;
+      pageCount = d.page_count ?? pageCount;
+      status = d.flyer_status ?? status;
+    }
+    toast(`Parse OK: ${staged} Angebote · ${limit} Seiten von ${pageCount ?? '?'} · Raster: ${raster} · LLM-Fehler: ${failures} · Status: ${status ?? '–'}`, failures ? 'error' : 'success', 9000);
+  } catch (err) {
+    toast('Parsen fehlgeschlagen: ' + err.message, 'error');
+  }
+  rowBusy.delete(flyerId);
+  await loadDashboard(false);
+  if (state.tab === 'review' && rev.flyerId === flyerId) await loadReviewFlyer(flyerId, true);
+}
+
+$('btnDiscover').onclick = () => withBusy($('btnDiscover'), async () => {
+  try {
+    const d = await invokeFn('flyer-fetch', { action: 'discover' });
+    const errs = Array.isArray(d.errors) ? d.errors.length : (d.errors ?? 0);
+    toast(`Lidl-Discover: ${d.found ?? 0} gefunden · ${d.upserted ?? 0} übernommen · ${errs} Fehler`, errs ? 'error' : 'success');
+    await loadDashboard(false);
+  } catch (err) { toast('Discover fehlgeschlagen: ' + err.message, 'error'); }
+});
+$('btnRefresh').onclick = () => withBusy($('btnRefresh'), () => loadDashboard(false));
+
+/* ================= upload modal ================= */
+$('btnUploadOpen').onclick = () => {
+  $('uploadForm').reset();
+  $('upWeek').value = fmtISO(mondayOf(new Date()));
+  $('upWeekHint').textContent = '';
+  $('uploadModal').hidden = false;
+};
+$('upCancel').onclick = () => { $('uploadModal').hidden = true; };
+$('uploadModal').addEventListener('click', (e) => { if (e.target === $('uploadModal')) $('uploadModal').hidden = true; });
+$('upWeek').addEventListener('change', () => {
+  const v = $('upWeek').value;
+  if (!v) { $('upWeekHint').textContent = ''; return; }
+  const d = new Date(v + 'T12:00:00');
+  $('upWeekHint').textContent = d.getDay() === 1 ? '' : 'Hinweis: gewähltes Datum ist kein Montag.';
+});
+
+$('uploadForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  withBusy($('upSubmit'), async () => {
+    const file = $('upFile').files[0];
+    if (!file) { toast('Bitte eine PDF-Datei wählen.', 'error'); return; }
+    const retailer = $('upRetailer').value;
+    const title = $('upTitle').value.trim();
+    const week = $('upWeek').value;
+    const from = $('upFrom').value;
+    const to = $('upTo').value;
+    if (!title || !week || !from || !to) { toast('Bitte alle Pflichtfelder ausfüllen.', 'error'); return; }
+    const note = $('upRegionNote').value.trim();
+    const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+    const path = `manual/${retailer}/${week}/${safeName}`;
+
+    const up = await supabase.storage.from('flyers').upload(path, file, { upsert: true, contentType: 'application/pdf' });
+    if (up.error) { dbErr('Upload', up.error); return; }
+
+    const { data: ins, error } = await supabase.from('flyer_registry').insert({
+      retailer_id: retailer,
+      title,
+      week_start: week,
+      valid_from: from,
+      valid_to: to,
+      region_scope: $('upScope').value,
+      regions: note ? { note } : null,
+      source: 'manual_upload',
+      pdf_path: path,
+      pdf_bytes: file.size,
+      viewer_url: $('upViewerUrl').value.trim() || null,
+      status: 'fetched',
+    }).select().single();
+    if (error) { dbErr('Registry-Eintrag', error); return; }
+
+    $('uploadModal').hidden = true;
+    toast('PDF hochgeladen und registriert.', 'success');
+    await loadDashboard(false);
+    if (confirm('Jetzt parsen? (erste 3 Seiten, dauert 1–3 Minuten)')) runParse(ins.id);
+  });
+});
+
+/* ================= review ================= */
+const rev = {
+  flyerId: null, offers: [], page: 1, maxPage: 1,
+  pdfDoc: null, pdfFlyerId: null, scale: 1, renderToken: 0, loading: false,
+};
+
+function reviewEligibleFlyers() {
+  return state.flyers.filter(f => f.pdf_path || (state.agg[f.id]?.total > 0));
+}
+
+function populateReviewSelector() {
+  const sel = $('revFlyerSel');
+  const opts = reviewEligibleFlyers().map(f =>
+    `<option value="${escAttr(f.id)}"${f.id === rev.flyerId ? ' selected' : ''}>` +
+    `${esc(RETAILER_LABEL[f.retailer_id] || f.retailer_id)} · ${esc(f.title || '?')} · ${fmtDE(f.week_start)}</option>`).join('');
+  sel.innerHTML = '<option value="">– Prospekt wählen –</option>' + opts;
+  if (rev.flyerId) sel.value = rev.flyerId;
+}
+
+function initReviewTab() {
+  populateReviewSelector();
+  if (!rev.flyerId) {
+    const first = reviewEligibleFlyers()[0];
+    if (first) loadReviewFlyer(first.id);
+  }
+}
+
+$('revFlyerSel').addEventListener('change', () => {
+  const id = $('revFlyerSel').value;
+  if (id) loadReviewFlyer(id);
+});
+$('revPrev').onclick = () => { if (rev.page > 1) { rev.page--; renderReviewPage(); } };
+$('revNext').onclick = () => { if (rev.page < rev.maxPage) { rev.page++; renderReviewPage(); } };
+
+async function loadReviewFlyer(flyerId, keepPage) {
+  if (rev.loading) return;
+  rev.loading = true;
+  try {
+    const flyer = state.flyers.find(f => f.id === flyerId);
+    if (!flyer) { toast('Prospekt nicht gefunden — bitte aktualisieren.', 'error'); return; }
+    const samePdf = rev.pdfFlyerId === flyerId && rev.pdfDoc;
+    rev.flyerId = flyerId;
+    $('revFlyerSel').value = flyerId;
+    if (!keepPage) rev.page = 1;
+    $('offerPane').innerHTML = '<p class="muted">Lade Angebote…</p>';
+
+    const { data, error } = await supabase.from('flyer_offers_staged').select('*')
+      .eq('flyer_id', flyerId).order('page_number').order('tile_index');
+    if (error) { dbErr('Angebote laden', error); $('offerPane').innerHTML = '<p class="bad">Fehler beim Laden.</p>'; return; }
+    rev.offers = data || [];
+
+    const maxOfferPage = rev.offers.reduce((m, o) => Math.max(m, o.page_number || 0), 0);
+    rev.maxPage = Math.max(flyer.pages_parsed || 0, maxOfferPage, 1);
+    rev.page = Math.min(Math.max(rev.page, 1), rev.maxPage);
+
+    if (!samePdf) {
+      rev.pdfDoc = null; rev.pdfFlyerId = flyerId;
+      clearPdfPane('');
+      if (flyer.pdf_path) {
+        $('pdfMsg').textContent = 'PDF wird geladen…';
+        const dl = await supabase.storage.from('flyers').download(flyer.pdf_path);
+        if (dl.error) {
+          dbErr('PDF-Download', dl.error);
+          $('pdfMsg').textContent = 'PDF konnte nicht geladen werden: ' + dl.error.message;
+        } else {
+          try {
+            const buf = await dl.data.arrayBuffer();
+            const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+            if (rev.pdfFlyerId === flyerId) { rev.pdfDoc = doc; $('pdfMsg').textContent = ''; }
+          } catch (err) {
+            toast('PDF-Render-Fehler: ' + (err.message || err), 'error');
+            $('pdfMsg').textContent = 'PDF konnte nicht gerendert werden.';
+          }
+        }
+      } else {
+        $('pdfMsg').textContent = 'Kein PDF in Storage (pdf_path leer).';
+      }
+    }
+    renderReviewPage();
+  } finally {
+    rev.loading = false;
+  }
+}
+
+function clearPdfPane(msg) {
+  const c = $('pdfCanvas');
+  c.width = 0; c.height = 0; c.style.width = '0px'; c.style.height = '0px';
+  $('pdfOverlay').innerHTML = '';
+  if (msg !== undefined) $('pdfMsg').textContent = msg;
+}
+
+function pageOffers() {
+  return rev.offers.filter(o => o.page_number === rev.page);
+}
+
+function renderReviewPage() {
+  $('revPageLabel').textContent = `Seite ${rev.page} / ${rev.maxPage}`;
+  $('revPrev').disabled = rev.page <= 1;
+  $('revNext').disabled = rev.page >= rev.maxPage;
+  renderOfferPane();
+  renderCounts();
+  renderPdfPage();
+}
+
+function renderCounts() {
+  const o = pageOffers();
+  const c = { pending: 0, approved: 0, rejected: 0 };
+  for (const x of o) {
+    if (x.status === 'pending') c.pending++;
+    else if (x.status === 'approved' || x.status === 'auto_approved' || x.status === 'promoted') c.approved++;
+    else if (x.status === 'rejected') c.rejected++;
+  }
+  $('revCounts').innerHTML =
+    `<span class="chip st-pending">${c.pending} offen</span>` +
+    `<span class="chip st-approved">${c.approved} frei</span>` +
+    `<span class="chip st-rejected">${c.rejected} abgelehnt</span>`;
+}
+
+async function renderPdfPage() {
+  const token = ++rev.renderToken;
+  if (!rev.pdfDoc) { clearPdfPane(undefined); return; }
+  if (rev.page > rev.pdfDoc.numPages) {
+    clearPdfPane(`Seite ${rev.page} ist nicht im PDF (nur ${rev.pdfDoc.numPages} Seiten).`);
+    return;
+  }
+  try {
+    const page = await rev.pdfDoc.getPage(rev.page);
+    if (token !== rev.renderToken) return;
+    const base = page.getViewport({ scale: 1 });
+    const pane = document.querySelector('.pdf-pane');
+    const paneW = Math.max(320, Math.min(680, (pane?.clientWidth || 700) - 20));
+    const s = paneW / base.width;
+    rev.scale = s;
+    const vp = page.getViewport({ scale: s });
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = $('pdfCanvas');
+    canvas.width = Math.floor(vp.width * dpr);
+    canvas.height = Math.floor(vp.height * dpr);
+    canvas.style.width = Math.floor(vp.width) + 'px';
+    canvas.style.height = Math.floor(vp.height) + 'px';
+    const ctx = canvas.getContext('2d');
+    await page.render({
+      canvasContext: ctx, viewport: vp,
+      transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+    }).promise;
+    if (token !== rev.renderToken) return;
+    $('pdfMsg').textContent = '';
+    renderOverlay();
+  } catch (err) {
+    if (token === rev.renderToken) {
+      toast('PDF-Seite konnte nicht gerendert werden: ' + (err.message || err), 'error');
+      $('pdfMsg').textContent = 'Render-Fehler.';
+    }
+  }
+}
+
+function renderOverlay() {
+  const s = rev.scale;
+  $('pdfOverlay').innerHTML = pageOffers().map((o, i) => {
+    const b = o.bbox;
+    if (!b || typeof b.x !== 'number' || typeof b.y !== 'number') return '';
+    return `<div class="bbox-chip" id="chip-${escAttr(o.id)}" data-oid="${escAttr(o.id)}" ` +
+      `style="left:${(b.x * s).toFixed(1)}px; top:${(b.y * s).toFixed(1)}px" title="${escAttr(o.title || '')}">${i + 1}</div>`;
+  }).join('');
+}
+
+$('pdfOverlay').addEventListener('click', (e) => {
+  const chip = e.target.closest('.bbox-chip');
+  if (!chip) return;
+  const card = document.getElementById('card-' + chip.dataset.oid);
+  if (card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('flash');
+    setTimeout(() => card.classList.remove('flash'), 1600);
+  }
+});
+
+/* ---- offer cards ---- */
+const NUM_FIELDS = ['price_eur', 'old_price_eur', 'discount_pct', 'grundpreis_eur'];
+
+function offerCardHTML(o, idx) {
+  const conf = o.confidence == null ? '–' : Number(o.confidence).toFixed(2);
+  const anoms = Array.isArray(o.anomalies) ? o.anomalies : [];
+  const fld = (label, f, val, cls = '') =>
+    `<label class="fld ${cls}">${label}<input data-f="${f}" type="text" value="${escAttr(val)}"></label>`;
+  const num = (label, f, val, cls = '') =>
+    `<label class="fld ${cls}">${label}<input data-f="${f}" type="number" step="0.01" value="${val == null ? '' : escAttr(val)}"></label>`;
+
+  return `<div class="offer-card" id="card-${escAttr(o.id)}" data-oid="${escAttr(o.id)}">
+    <div class="offer-head">
+      <span class="tile-no">${idx}</span>
+      <span class="chip st-${escAttr(o.status)}">${esc(o.status)}</span>
+      ${o.edited ? '<span class="chip chip-edited">bearbeitet</span>' : ''}
+      <span class="muted small">Konf. ${esc(conf)}</span>
+      <span class="${o.digit_check_passed ? 'ok' : 'bad'}" title="Ziffern-Plausibilitätscheck">${o.digit_check_passed ? '✓' : '✗'} Ziffern</span>
+      ${anoms.map(a => `<span class="chip chip-anom">${esc(a)}</span>`).join('')}
+      <span class="spacer"></span>
+      <span class="muted small nowrap">${fmtDE(o.valid_from)} – ${fmtDE(o.valid_to)}</span>
+    </div>
+    <div class="fgrid">
+      ${fld('Titel', 'title', o.title, 'w2')}
+      ${fld('Marke', 'brand', o.brand)}
+      ${num('Preis €', 'price_eur', o.price_eur)}
+      ${num('Alter Preis €', 'old_price_eur', o.old_price_eur)}
+      ${num('Rabatt %', 'discount_pct', o.discount_pct)}
+      ${fld('Packung', 'pack_text', o.pack_text)}
+      ${fld('Grundpreis (Text)', 'grundpreis_text', o.grundpreis_text)}
+      <div style="display:flex; gap:6px">
+        ${num('GP €', 'grundpreis_eur', o.grundpreis_eur)}
+        ${fld('GP-Einheit', 'grundpreis_unit', o.grundpreis_unit)}
+      </div>
+      ${fld('Herkunft', 'origin', o.origin)}
+      ${fld('Notizen', 'notes', o.notes, 'w2')}
+      <label class="fld chk"><input type="checkbox" data-f="requires_app"${o.requires_app ? ' checked' : ''}> Nur mit App</label>
+      ${fld('Reviewer-Notiz', 'reviewer_note', o.reviewer_note, 'w2')}
+    </div>
+    <details><summary>Rohtext</summary><pre>${esc(o.raw_text || '(leer)')}</pre></details>
+    <div class="offer-actions">
+      <button class="btn btn-xs" data-act="save">Speichern</button>
+      <button class="btn btn-xs btn-approve" data-act="approve">✓ Freigeben</button>
+      <button class="btn btn-xs btn-danger" data-act="reject">✗ Ablehnen</button>
+    </div>
+  </div>`;
+}
+
+function renderOfferPane() {
+  const offers = pageOffers();
+  if (!rev.flyerId) { $('offerPane').innerHTML = '<p class="muted">Prospekt wählen.</p>'; return; }
+  if (!offers.length) { $('offerPane').innerHTML = '<p class="muted card">Keine Angebote auf dieser Seite.</p>'; return; }
+  $('offerPane').innerHTML = offers.map((o, i) => offerCardHTML(o, i + 1)).join('');
+}
+
+function rerenderCard(offer) {
+  const card = document.getElementById('card-' + offer.id);
+  if (!card) return;
+  const idx = pageOffers().findIndex(o => o.id === offer.id) + 1;
+  card.outerHTML = offerCardHTML(offer, idx);
+}
+
+$('offerPane').addEventListener('mouseover', (e) => {
+  const card = e.target.closest('.offer-card');
+  if (card) document.getElementById('chip-' + card.dataset.oid)?.classList.add('hot');
+});
+$('offerPane').addEventListener('mouseout', (e) => {
+  const card = e.target.closest('.offer-card');
+  if (card) document.getElementById('chip-' + card.dataset.oid)?.classList.remove('hot');
+});
+
+$('offerPane').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const card = btn.closest('.offer-card');
+  const oid = card.dataset.oid;
+  const offer = rev.offers.find(o => o.id === oid);
+  if (!offer) return;
+
+  if (btn.dataset.act === 'save') {
+    const payload = { edited: true };
+    let invalid = null;
+    card.querySelectorAll('[data-f]').forEach(el => {
+      const f = el.dataset.f;
+      if (el.type === 'checkbox') { payload[f] = el.checked; return; }
+      const v = el.value.trim();
+      if (NUM_FIELDS.includes(f)) {
+        if (v === '') payload[f] = null;
+        else { const n = Number(v); if (Number.isNaN(n)) invalid = f; else payload[f] = n; }
+      } else {
+        payload[f] = v === '' ? null : v;
+      }
+    });
+    if (invalid) { toast(`Ungültige Zahl im Feld „${invalid}“.`, 'error'); return; }
+    await withBusy(btn, async () => {
+      const { error } = await supabase.from('flyer_offers_staged').update(payload).eq('id', oid);
+      if (error) { dbErr('Speichern', error); return; }
+      Object.assign(offer, payload);
+      toast('Angebot gespeichert.', 'success', 2500);
+      rerenderCard(offer);
+    });
+  }
+  else if (btn.dataset.act === 'approve' || btn.dataset.act === 'reject') {
+    const status = btn.dataset.act === 'approve' ? 'approved' : 'rejected';
+    await withBusy(btn, async () => {
+      const { error } = await supabase.from('flyer_offers_staged').update({ status }).eq('id', oid);
+      if (error) { dbErr(status === 'approved' ? 'Freigeben' : 'Ablehnen', error); return; }
+      offer.status = status;
+      rerenderCard(offer);
+      renderCounts();
+    });
+  }
+});
+
+$('btnApproveClean').onclick = () => withBusy($('btnApproveClean'), async () => {
+  const clean = pageOffers().filter(o =>
+    o.status === 'pending' &&
+    o.digit_check_passed &&
+    (!Array.isArray(o.anomalies) || o.anomalies.length === 0));
+  if (!clean.length) { toast('Keine sauberen offenen Angebote auf dieser Seite.', 'info'); return; }
+  const ids = clean.map(o => o.id);
+  const { error } = await supabase.from('flyer_offers_staged').update({ status: 'approved' }).in('id', ids);
+  if (error) { dbErr('Sammel-Freigabe', error); return; }
+  clean.forEach(o => { o.status = 'approved'; });
+  toast(`${clean.length} Angebote freigegeben.`, 'success');
+  renderOfferPane();
+  renderCounts();
+});
+
+/* ================= konfiguration ================= */
+async function loadConfig() {
+  $('cfgWrap').innerHTML = '<p class="muted">Lade…</p>';
+  const { data, error } = await supabase.from('flyer_pipeline_config').select('*').order('key');
+  if (error) { dbErr('Konfiguration laden', error); $('cfgWrap').innerHTML = '<p class="bad">Fehler beim Laden.</p>'; return; }
+  if (!data || !data.length) { $('cfgWrap').innerHTML = '<p class="muted">Keine Konfigurationseinträge.</p>'; return; }
+  $('cfgWrap').innerHTML = data.map(row => {
+    const json = JSON.stringify(row.value, null, 2) ?? 'null';
+    const rows = Math.min(14, Math.max(4, json.split('\n').length + 1));
+    return `<div class="cfg-row" data-key="${escAttr(row.key)}">
+      <div class="cfg-head"><strong><code>${esc(row.key)}</code></strong>
+        <button class="btn btn-xs" data-cfg-save>Speichern</button></div>
+      <textarea rows="${rows}" data-cfg-value>${esc(json)}</textarea>
+      <div class="cfg-err"></div>
+    </div>`;
+  }).join('');
+}
+
+$('cfgWrap').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-cfg-save]');
+  if (!btn) return;
+  const row = btn.closest('.cfg-row');
+  const key = row.dataset.key;
+  const errEl = row.querySelector('.cfg-err');
+  errEl.textContent = '';
+  let value;
+  try { value = JSON.parse(row.querySelector('[data-cfg-value]').value); }
+  catch (err) { errEl.textContent = 'Ungültiges JSON: ' + err.message; toast('Ungültiges JSON bei ' + key, 'error'); return; }
+  await withBusy(btn, async () => {
+    const { error } = await supabase.from('flyer_pipeline_config').update({ value }).eq('key', key);
+    if (error) { errEl.textContent = error.message; dbErr('Konfiguration speichern', error); return; }
+    toast(`„${key}“ gespeichert.`, 'success', 2500);
+  });
+});
+
+/* ================= läufe ================= */
+async function loadRuns() {
+  $('runsWrap').innerHTML = '<p class="muted">Lade…</p>';
+  const { data, error } = await supabase.from('flyer_pipeline_runs').select('*')
+    .order('started_at', { ascending: false }).limit(50);
+  if (error) { dbErr('Läufe laden', error); $('runsWrap').innerHTML = '<p class="bad">Fehler beim Laden.</p>'; return; }
+  if (!data || !data.length) { $('runsWrap').innerHTML = '<p class="muted">Noch keine Läufe.</p>'; return; }
+  const titleById = Object.fromEntries(state.flyers.map(f =>
+    [f.id, `${RETAILER_LABEL[f.retailer_id] || f.retailer_id} · ${f.title || '?'}`]));
+  const rows = data.map(r => {
+    const dur = (r.started_at && r.finished_at)
+      ? ((new Date(r.finished_at) - new Date(r.started_at)) / 1000).toFixed(1) + 's' : '–';
+    const flyer = r.flyer_id ? (titleById[r.flyer_id] || r.flyer_id.slice(0, 8) + '…') : '–';
+    const stats = r.stats ? `<details class="inline"><summary>Stats</summary><pre>${esc(JSON.stringify(r.stats, null, 2))}</pre></details>` : '<span class="muted">–</span>';
+    const log = r.log ? `<details class="inline runs-log"><summary>Log</summary><pre>${esc(r.log)}</pre></details>` : '<span class="muted">–</span>';
+    return `<tr>
+      <td class="nowrap small">${fmtTs(r.started_at)}</td>
+      <td class="nowrap">${esc(r.kind || '–')}</td>
+      <td>${esc(flyer)}</td>
+      <td>${r.ok === true ? '<span class="ok">✓</span>' : r.ok === false ? '<span class="bad">✗</span>' : '<span class="muted">–</span>'}</td>
+      <td class="nowrap">${dur}</td>
+      <td>${stats}</td>
+      <td style="max-width:420px">${log}</td>
+    </tr>`;
+  }).join('');
+  $('runsWrap').innerHTML = `<table class="list">
+    <tr><th>Start</th><th>Art</th><th>Prospekt</th><th>OK</th><th>Dauer</th><th>Stats</th><th>Log</th></tr>
+    ${rows}</table>`;
+}
+
+/* ================= boot ================= */
+route();
+</script>
+</body>
+</html>
