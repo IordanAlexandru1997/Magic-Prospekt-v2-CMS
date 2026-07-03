@@ -45,6 +45,7 @@
   }
   nav.tabs button.active{color:var(--accent); border-bottom-color:var(--accent)}
   .user{margin-left:auto; display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12.5px}
+  .lang-sel{width:auto; padding:3px 6px; font-size:12px}
   main{padding:18px; max-width:1500px; margin:0 auto}
   .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:14px}
   .toolbar{display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap}
@@ -115,11 +116,12 @@
   .auth-wrap{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px}
   /* [hidden] must always win over class display rules (flex/grid). */
   [hidden]{display:none !important}
-  .auth-card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:28px; width:360px; max-width:100%}
+  .auth-card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:28px; width:360px; max-width:100%; position:relative}
   .auth-card h1{font-size:17px}
   .auth-card label{display:block; margin:12px 0 4px; font-weight:600; font-size:12.5px}
   .auth-card .row{display:flex; gap:8px; margin-top:16px}
   .auth-card .row .btn{flex:1; justify-content:center}
+  .auth-lang{position:absolute; top:14px; right:14px}
   input[type=text],input[type=email],input[type=password],input[type=number],input[type=date],select,textarea{
     width:100%; border:1px solid var(--border2); border-radius:7px; padding:6px 8px;
     font:inherit; background:#fff; color:var(--text);
@@ -150,9 +152,17 @@
   /* ---------- review ---------- */
   .review-body{display:flex; gap:14px; align-items:flex-start}
   .pdf-pane{flex:none; width:704px; max-width:55vw; position:sticky; top:64px; padding:8px}
-  .pdf-wrap{position:relative; line-height:0}
-  .pdf-wrap canvas{border:1px solid var(--border); border-radius:4px; max-width:100%}
+  .pdf-wrap{
+    position:relative; line-height:0; overflow:hidden; height:calc(100vh - 92px);
+    border:1px solid var(--border); border-radius:6px; background:#fafbfc;
+    cursor:grab; touch-action:none; user-select:none;
+  }
+  .pdf-wrap.grabbing{cursor:grabbing}
+  #pdfDrag{position:absolute; left:0; top:0; will-change:transform}
+  .pdf-wrap canvas{display:block; max-width:none}
   #pdfOverlay{position:absolute; inset:0; line-height:normal}
+  .pan-hint{position:absolute; left:8px; bottom:6px; z-index:4; background:rgba(20,28,36,.62); color:#fff;
+    font-size:10.5px; padding:2px 7px; border-radius:6px; pointer-events:none; line-height:1.3}
   .bbox-chip{
     position:absolute; min-width:20px; height:20px; padding:0 4px; border-radius:10px;
     background:var(--accent); color:#fff; font-size:11px; font-weight:700;
@@ -197,15 +207,18 @@
 <!-- ============ AUTH ============ -->
 <div id="authView" class="auth-wrap" hidden>
   <div class="auth-card">
+    <select id="langSelAuth" class="lang-sel auth-lang" title="Sprache / Language / Limbă">
+      <option value="de">Deutsch</option><option value="en">English</option><option value="ro">Română</option>
+    </select>
     <h1>Magic Prospekt · Flyer CMS</h1>
-    <p class="muted small" style="margin:4px 0 0">Admin-Zugang für die Prospekt-Pipeline.</p>
-    <label for="authEmail">E-Mail</label>
+    <p class="muted small" style="margin:4px 0 0" data-i18n="auth_subtitle">Admin-Zugang für die Prospekt-Pipeline.</p>
+    <label for="authEmail" data-i18n="email">E-Mail</label>
     <input id="authEmail" type="email" autocomplete="username">
-    <label for="authPw">Passwort</label>
+    <label for="authPw" data-i18n="password">Passwort</label>
     <input id="authPw" type="password" autocomplete="current-password">
     <div class="row">
-      <button id="btnLogin" class="btn btn-primary">Anmelden</button>
-      <button id="btnSignup" class="btn">Registrieren</button>
+      <button id="btnLogin" class="btn btn-primary" data-i18n="login">Anmelden</button>
+      <button id="btnSignup" class="btn" data-i18n="signup">Registrieren</button>
     </div>
     <p id="authMsg" class="muted small" style="min-height:16px; margin:12px 0 0"></p>
   </div>
@@ -214,11 +227,11 @@
 <!-- ============ NOT ADMIN ============ -->
 <div id="notAdminView" class="auth-wrap" hidden>
   <div class="auth-card">
-    <h1>Kein Admin-Zugang</h1>
-    <p>Dieses Konto ist nicht als Admin freigeschaltet (flyer_admins).</p>
+    <h1 data-i18n="not_admin_title">Kein Admin-Zugang</h1>
+    <p data-i18n="not_admin_body">Dieses Konto ist nicht als Admin freigeschaltet (flyer_admins).</p>
     <p class="muted small" id="notAdminEmail"></p>
     <p class="muted small" id="notAdminErr"></p>
-    <div class="row"><button id="btnLogout2" class="btn">Abmelden</button></div>
+    <div class="row"><button id="btnLogout2" class="btn" data-i18n="logout">Abmelden</button></div>
   </div>
 </div>
 
@@ -227,30 +240,36 @@
   <header class="app">
     <div class="brand">Magic Prospekt <span>· Flyer CMS</span></div>
     <nav class="tabs" id="tabNav">
-      <button data-tab="prospekte" class="active">Prospekte</button>
-      <button data-tab="review">Review</button>
-      <button data-tab="config">Konfiguration</button>
-      <button data-tab="runs">Läufe</button>
+      <button data-tab="prospekte" class="active" data-i18n="tab_prospekte">Prospekte</button>
+      <button data-tab="review" data-i18n="tab_review">Review</button>
+      <button data-tab="config" data-i18n="tab_config">Konfiguration</button>
+      <button data-tab="runs" data-i18n="tab_runs">Läufe</button>
     </nav>
-    <div class="user"><span id="userEmail"></span><button id="btnLogout" class="btn btn-xs">Abmelden</button></div>
+    <div class="user">
+      <select id="langSel" class="lang-sel" title="Sprache / Language / Limbă">
+        <option value="de">Deutsch</option><option value="en">English</option><option value="ro">Română</option>
+      </select>
+      <span id="userEmail"></span>
+      <button id="btnLogout" class="btn btn-xs" data-i18n="logout">Abmelden</button>
+    </div>
   </header>
 
   <main>
     <!-- ------ Prospekte ------ -->
     <section id="tab-prospekte">
       <div class="toolbar">
-        <button id="btnDiscover" class="btn btn-primary">Lidl entdecken</button>
-        <button id="btnUploadOpen" class="btn">PDF hochladen</button>
+        <button id="btnDiscover" class="btn btn-primary" data-i18n="discover_lidl">Lidl entdecken</button>
+        <button id="btnUploadOpen" class="btn" data-i18n="upload_pdf">PDF hochladen</button>
         <span class="spacer"></span>
-        <button id="btnRefresh" class="btn" title="Aktualisieren">&#10227; Aktualisieren</button>
+        <button id="btnRefresh" class="btn"><span>&#10227;</span> <span data-i18n="refresh">Aktualisieren</span></button>
       </div>
       <div class="card">
-        <h3 style="font-size:13px">Verfügbarkeit (aktuelle + nächste Woche)</h3>
+        <h3 style="font-size:13px" data-i18n="availability_title">Verfügbarkeit (aktuelle + nächste Woche)</h3>
         <div id="availGrid" style="overflow-x:auto"></div>
-        <p class="muted small" style="margin:8px 0 0">Kaufland läuft über den nativen SSR-Crawler (beide Wochenzyklen), nicht über PDFs.</p>
+        <p class="muted small" style="margin:8px 0 0" data-i18n="kaufland_note">Kaufland läuft über den nativen SSR-Crawler (beide Wochenzyklen), nicht über PDFs.</p>
       </div>
       <div class="card" style="overflow-x:auto">
-        <div id="flyerTableWrap"><p class="muted">Lade…</p></div>
+        <div id="flyerTableWrap"><p class="muted" data-i18n="loading">Lade…</p></div>
       </div>
     </section>
 
@@ -258,34 +277,38 @@
     <section id="tab-review" hidden>
       <div class="toolbar">
         <select id="revFlyerSel" style="width:auto; max-width:420px"></select>
-        <button id="revPrev" class="btn" title="Vorherige Seite">&lsaquo;</button>
-        <span id="revPageLabel" class="nowrap muted">Seite –</span>
-        <button id="revNext" class="btn" title="Nächste Seite">&rsaquo;</button>
+        <button id="revPrev" class="btn" data-i18n-title="prev_page" title="Vorherige Seite">&lsaquo;</button>
+        <span id="revPageLabel" class="nowrap muted">–</span>
+        <button id="revNext" class="btn" data-i18n-title="next_page" title="Nächste Seite">&rsaquo;</button>
+        <button id="revNextFlag" class="btn" data-i18n="next_flagged">Nächste markierte Seite</button>
         <span class="spacer"></span>
         <span id="revCounts"></span>
-        <button id="btnApproveClean" class="btn btn-primary">Alle sauberen auf Seite freigeben</button>
-        <button class="btn" disabled title="Kommt in Phase 4 — flyer-promote">In App übernehmen (Phase 4)</button>
+        <button id="btnApproveClean" class="btn btn-primary" data-i18n="approve_clean">Alle sauberen auf Seite freigeben</button>
+        <button class="btn" disabled data-i18n="promote_phase4" title="Phase 4 — flyer-promote">In App übernehmen (Phase 4)</button>
       </div>
       <div class="review-body">
         <div class="pdf-pane card">
-          <div class="pdf-wrap">
-            <canvas id="pdfCanvas" width="0" height="0"></canvas>
-            <div id="pdfOverlay"></div>
+          <div class="pdf-wrap" id="pdfWrap">
+            <div id="pdfDrag">
+              <canvas id="pdfCanvas" width="0" height="0"></canvas>
+              <div id="pdfOverlay"></div>
+            </div>
+            <div class="pan-hint" id="panHint" data-i18n="pan_hint" hidden>Bild ziehen zum Verschieben</div>
           </div>
           <p id="pdfMsg" class="muted small" style="margin:6px 2px 0"></p>
         </div>
-        <div id="offerPane" class="offer-pane"><p class="muted">Prospekt wählen.</p></div>
+        <div id="offerPane" class="offer-pane"><p class="muted" data-i18n="choose_flyer">Prospekt wählen.</p></div>
       </div>
     </section>
 
     <!-- ------ Konfiguration ------ -->
     <section id="tab-config" hidden>
-      <div class="card"><div id="cfgWrap"><p class="muted">Lade…</p></div></div>
+      <div class="card"><div id="cfgWrap"><p class="muted" data-i18n="loading">Lade…</p></div></div>
     </section>
 
     <!-- ------ Läufe ------ -->
     <section id="tab-runs" hidden>
-      <div class="card" style="overflow-x:auto"><div id="runsWrap"><p class="muted">Lade…</p></div></div>
+      <div class="card" style="overflow-x:auto"><div id="runsWrap"><p class="muted" data-i18n="loading">Lade…</p></div></div>
     </section>
   </main>
 </div>
@@ -293,13 +316,13 @@
 <!-- ============ UPLOAD MODAL ============ -->
 <div id="uploadModal" class="modal-bg" hidden>
   <div class="modal">
-    <h2>PDF hochladen</h2>
+    <h2 data-i18n="upload_pdf">PDF hochladen</h2>
     <form id="uploadForm">
-      <label>Datei (PDF)</label>
+      <label data-i18n="up_file">Datei (PDF)</label>
       <input type="file" id="upFile" accept="application/pdf" required>
       <div class="mrow">
         <div>
-          <label>Retailer</label>
+          <label data-i18n="up_retailer">Retailer</label>
           <select id="upRetailer" required>
             <option value="aldi_sued">Aldi Süd</option>
             <option value="aldi_nord">Aldi Nord</option>
@@ -313,30 +336,33 @@
           </select>
         </div>
         <div>
-          <label>Woche (Montag)</label>
+          <label data-i18n="up_week">Woche (Montag)</label>
           <input type="date" id="upWeek" required>
           <div class="hint" id="upWeekHint"></div>
         </div>
       </div>
-      <label>Titel</label>
-      <input type="text" id="upTitle" required placeholder="z. B. Handzettel KW 27">
+      <label data-i18n="up_title">Titel</label>
+      <input type="text" id="upTitle" required data-i18n-ph="up_title_ph" placeholder="z. B. Handzettel KW 27">
       <div class="mrow">
-        <div><label>Gültig von</label><input type="date" id="upFrom" required></div>
-        <div><label>Gültig bis</label><input type="date" id="upTo" required></div>
+        <div><label data-i18n="up_valid_from">Gültig von</label><input type="date" id="upFrom" required></div>
+        <div><label data-i18n="up_valid_to">Gültig bis</label><input type="date" id="upTo" required></div>
       </div>
       <div class="mrow">
         <div>
-          <label>Region</label>
-          <select id="upScope"><option value="national">national</option><option value="regional">regional</option></select>
+          <label data-i18n="up_region">Region</label>
+          <select id="upScope">
+            <option value="national" data-i18n="national">national</option>
+            <option value="regional" data-i18n="regional">regional</option>
+          </select>
         </div>
-        <div><label>Region-Notiz (optional)</label><input type="text" id="upRegionNote" placeholder="z. B. Südwest"></div>
+        <div><label data-i18n="up_region_note">Region-Notiz (optional)</label><input type="text" id="upRegionNote" data-i18n-ph="up_region_note_ph" placeholder="z. B. Südwest"></div>
       </div>
       <div class="mrow">
-        <div><label>Viewer-URL (optional — Online-Prospekt des Händlers, für den App-Deep-Link)</label><input type="url" id="upViewerUrl" placeholder="https://www.aldi-sued.de/…/prospekte/…"></div>
+        <div><label data-i18n="up_viewer">Viewer-URL (optional — Online-Prospekt des Händlers, für den App-Deep-Link)</label><input type="url" id="upViewerUrl" placeholder="https://www.aldi-sued.de/…/prospekte/…"></div>
       </div>
       <div class="mfoot">
-        <button type="button" class="btn" id="upCancel">Abbrechen</button>
-        <button type="submit" class="btn btn-primary" id="upSubmit">Hochladen</button>
+        <button type="button" class="btn" id="upCancel" data-i18n="cancel">Abbrechen</button>
+        <button type="submit" class="btn btn-primary" id="upSubmit" data-i18n="upload_pdf">Hochladen</button>
       </div>
     </form>
   </div>
@@ -350,6 +376,231 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dis
 const SUPABASE_URL = 'https://ssqoldrkrwcxmaqevmze.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzcW9sZHJrcndjeG1hcWV2bXplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMDU5NjYsImV4cCI6MjA5NDU4MTk2Nn0.6QvB9LXNXmvuhy3lNsEttKc8mreIM-ohPrpFA_pLrcI';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ================= i18n ================= */
+const I18N = {
+  auth_subtitle:{de:'Admin-Zugang für die Prospekt-Pipeline.',en:'Admin access for the flyer pipeline.',ro:'Acces de administrator pentru pipeline-ul de prospecte.'},
+  email:{de:'E-Mail',en:'Email',ro:'E-mail'},
+  password:{de:'Passwort',en:'Password',ro:'Parolă'},
+  login:{de:'Anmelden',en:'Sign in',ro:'Autentificare'},
+  signup:{de:'Registrieren',en:'Register',ro:'Înregistrare'},
+  logout:{de:'Abmelden',en:'Sign out',ro:'Deconectare'},
+  not_admin_title:{de:'Kein Admin-Zugang',en:'No admin access',ro:'Fără acces de administrator'},
+  not_admin_body:{de:'Dieses Konto ist nicht als Admin freigeschaltet (flyer_admins).',en:'This account is not enabled as an admin (flyer_admins).',ro:'Acest cont nu are drepturi de administrator (flyer_admins).'},
+  tab_prospekte:{de:'Prospekte',en:'Flyers',ro:'Prospecte'},
+  tab_review:{de:'Review',en:'Review',ro:'Verificare'},
+  tab_config:{de:'Konfiguration',en:'Configuration',ro:'Configurare'},
+  tab_runs:{de:'Läufe',en:'Runs',ro:'Rulări'},
+  discover_lidl:{de:'Lidl entdecken',en:'Discover Lidl',ro:'Descoperă Lidl'},
+  upload_pdf:{de:'PDF hochladen',en:'Upload PDF',ro:'Încarcă PDF'},
+  refresh:{de:'Aktualisieren',en:'Refresh',ro:'Reîmprospătează'},
+  availability_title:{de:'Verfügbarkeit (aktuelle + nächste Woche)',en:'Availability (current + next week)',ro:'Disponibilitate (săptămâna curentă + următoarea)'},
+  kaufland_note:{de:'Kaufland läuft über den nativen SSR-Crawler (beide Wochenzyklen), nicht über PDFs.',en:'Kaufland uses the native SSR crawler (both weekly cycles), not PDFs.',ro:'Kaufland folosește crawler-ul SSR nativ (ambele cicluri săptămânale), nu PDF-uri.'},
+  loading:{de:'Lade…',en:'Loading…',ro:'Se încarcă…'},
+  no_flyers:{de:'Keine Prospekte registriert. „Lidl entdecken“ oder „PDF hochladen“.',en:'No flyers registered. “Discover Lidl” or “Upload PDF”.',ro:'Niciun prospect înregistrat. „Descoperă Lidl” sau „Încarcă PDF”.'},
+  th_retailer:{de:'Retailer',en:'Retailer',ro:'Comerciant'},
+  th_title:{de:'Titel',en:'Title',ro:'Titlu'},
+  th_week:{de:'Woche',en:'Week',ro:'Săptămâna'},
+  th_valid:{de:'Gültig',en:'Valid',ro:'Valabil'},
+  th_region:{de:'Region',en:'Region',ro:'Regiune'},
+  th_source:{de:'Quelle',en:'Source',ro:'Sursă'},
+  th_status:{de:'Status',en:'Status',ro:'Status'},
+  th_pages:{de:'Seiten',en:'Pages',ro:'Pagini'},
+  th_offers:{de:'Angebote',en:'Offers',ro:'Oferte'},
+  th_actions:{de:'Aktionen',en:'Actions',ro:'Acțiuni'},
+  act_download:{de:'Download',en:'Download',ro:'Descarcă'},
+  act_parse:{de:'Parsen ({0} S.)',en:'Parse ({0} p.)',ro:'Parsează ({0} p.)'},
+  act_reparse:{de:'Neu parsen',en:'Re-parse',ro:'Reparsează'},
+  act_review:{de:'Review öffnen',en:'Open review',ro:'Deschide verificarea'},
+  act_delete:{de:'Löschen',en:'Delete',ro:'Șterge'},
+  av_week_col:{de:'Woche',en:'Week',ro:'Săptămâna'},
+  av_kw:{de:'KW {0} · ab {1}',en:'W{0} · from {1}',ro:'S{0} · de la {1}'},
+  select_flyer:{de:'– Prospekt wählen –',en:'– Choose flyer –',ro:'– Alege prospect –'},
+  prev_page:{de:'Vorherige Seite',en:'Previous page',ro:'Pagina anterioară'},
+  next_page:{de:'Nächste Seite',en:'Next page',ro:'Pagina următoare'},
+  next_flagged:{de:'Nächste markierte Seite',en:'Next flagged page',ro:'Următoarea pagină semnalată'},
+  page_label:{de:'Seite {0} / {1}',en:'Page {0} / {1}',ro:'Pagina {0} / {1}'},
+  approve_clean:{de:'Alle sauberen auf Seite freigeben',en:'Approve all clean on page',ro:'Aprobă toate cele curate de pe pagină'},
+  promote_phase4:{de:'In App übernehmen (Phase 4)',en:'Import into app (Phase 4)',ro:'Preia în aplicație (Faza 4)'},
+  choose_flyer:{de:'Prospekt wählen.',en:'Choose a flyer.',ro:'Alege un prospect.'},
+  loading_offers:{de:'Lade Angebote…',en:'Loading offers…',ro:'Se încarcă ofertele…'},
+  no_offers_page:{de:'Keine Angebote auf dieser Seite.',en:'No offers on this page.',ro:'Nicio ofertă pe această pagină.'},
+  pan_hint:{de:'Bild ziehen zum Verschieben',en:'Drag the image to pan',ro:'Trage imaginea pentru a o deplasa'},
+  cnt_open:{de:'{0} offen',en:'{0} open',ro:'{0} deschise'},
+  cnt_approved:{de:'{0} frei',en:'{0} approved',ro:'{0} aprobate'},
+  cnt_rejected:{de:'{0} abgelehnt',en:'{0} rejected',ro:'{0} respinse'},
+  f_title:{de:'Titel',en:'Title',ro:'Titlu'},
+  f_brand:{de:'Marke',en:'Brand',ro:'Marcă'},
+  f_price:{de:'Preis €',en:'Price €',ro:'Preț €'},
+  f_old_price:{de:'Alter Preis €',en:'Old price €',ro:'Preț vechi €'},
+  f_discount:{de:'Rabatt %',en:'Discount %',ro:'Reducere %'},
+  f_pack:{de:'Packung',en:'Pack',ro:'Ambalaj'},
+  f_grundpreis_text:{de:'Grundpreis (Text)',en:'Base price (text)',ro:'Preț unitar (text)'},
+  f_gp_eur:{de:'GP €',en:'BP €',ro:'PU €'},
+  f_gp_unit:{de:'GP-Einheit',en:'BP unit',ro:'Unitate PU'},
+  f_origin:{de:'Herkunft',en:'Origin',ro:'Origine'},
+  f_notes:{de:'Notizen',en:'Notes',ro:'Note'},
+  f_requires_app:{de:'Nur mit App',en:'App only',ro:'Doar cu aplicația'},
+  f_reviewer_note:{de:'Reviewer-Notiz',en:'Reviewer note',ro:'Notă verificator'},
+  lbl_digits:{de:'Ziffern',en:'Digits',ro:'Cifre'},
+  lbl_conf:{de:'Konf.',en:'Conf.',ro:'Încr.'},
+  chip_edited:{de:'bearbeitet',en:'edited',ro:'editat'},
+  rawtext:{de:'Rohtext',en:'Raw text',ro:'Text brut'},
+  empty:{de:'(leer)',en:'(empty)',ro:'(gol)'},
+  save:{de:'Speichern',en:'Save',ro:'Salvează'},
+  approve:{de:'✓ Freigeben',en:'✓ Approve',ro:'✓ Aprobă'},
+  reject:{de:'✗ Ablehnen',en:'✗ Reject',ro:'✗ Respinge'},
+  no_config:{de:'Keine Konfigurationseinträge.',en:'No configuration entries.',ro:'Nicio configurare.'},
+  no_runs:{de:'Noch keine Läufe.',en:'No runs yet.',ro:'Încă nicio rulare.'},
+  th_start:{de:'Start',en:'Start',ro:'Început'},
+  th_kind:{de:'Art',en:'Kind',ro:'Tip'},
+  th_flyer:{de:'Prospekt',en:'Flyer',ro:'Prospect'},
+  th_ok:{de:'OK',en:'OK',ro:'OK'},
+  th_duration:{de:'Dauer',en:'Duration',ro:'Durată'},
+  th_stats:{de:'Stats',en:'Stats',ro:'Statistici'},
+  th_log:{de:'Log',en:'Log',ro:'Jurnal'},
+  up_file:{de:'Datei (PDF)',en:'File (PDF)',ro:'Fișier (PDF)'},
+  up_retailer:{de:'Retailer',en:'Retailer',ro:'Comerciant'},
+  up_week:{de:'Woche (Montag)',en:'Week (Monday)',ro:'Săptămâna (luni)'},
+  up_title:{de:'Titel',en:'Title',ro:'Titlu'},
+  up_title_ph:{de:'z. B. Handzettel KW 27',en:'e.g. Flyer week 27',ro:'ex. Prospect săpt. 27'},
+  up_valid_from:{de:'Gültig von',en:'Valid from',ro:'Valabil de la'},
+  up_valid_to:{de:'Gültig bis',en:'Valid to',ro:'Valabil până la'},
+  up_region:{de:'Region',en:'Region',ro:'Regiune'},
+  up_region_note:{de:'Region-Notiz (optional)',en:'Region note (optional)',ro:'Notă regiune (opțional)'},
+  up_region_note_ph:{de:'z. B. Südwest',en:'e.g. Southwest',ro:'ex. Sud-vest'},
+  up_viewer:{de:'Viewer-URL (optional — Online-Prospekt des Händlers, für den App-Deep-Link)',en:'Viewer URL (optional — retailer’s online flyer, for the app deep link)',ro:'URL vizualizare (opțional — prospectul online al comerciantului, pentru deep-link în aplicație)'},
+  cancel:{de:'Abbrechen',en:'Cancel',ro:'Anulează'},
+  national:{de:'national',en:'national',ro:'național'},
+  regional:{de:'regional',en:'regional',ro:'regional'},
+  hint_not_monday:{de:'Hinweis: gewähltes Datum ist kein Montag.',en:'Note: the chosen date is not a Monday.',ro:'Notă: data aleasă nu este o zi de luni.'},
+  /* toasts / errors */
+  err_generic:{de:'Fehler',en:'Error',ro:'Eroare'},
+  err_edge:{de:'Edge-Funktion fehlgeschlagen',en:'Edge function failed',ro:'Funcția edge a eșuat'},
+  err_ok_false:{de:'Funktion meldet ok=false',en:'Function returned ok=false',ro:'Funcția a returnat ok=false'},
+  err_login:{de:'Anmeldung',en:'Sign-in',ro:'Autentificare'},
+  err_signup:{de:'Registrierung',en:'Registration',ro:'Înregistrare'},
+  err_logout:{de:'Abmelden',en:'Sign-out',ro:'Deconectare'},
+  err_admin_check:{de:'Admin-Prüfung',en:'Admin check',ro:'Verificare admin'},
+  admin_check_fail:{de:'Fehler bei der Admin-Prüfung: {0}',en:'Admin check failed: {0}',ro:'Verificarea de admin a eșuat: {0}'},
+  msg_registered:{de:'Registriert. Bitte ggf. E-Mail bestätigen und dann anmelden.',en:'Registered. Confirm your email if required, then sign in.',ro:'Înregistrat. Confirmă e-mailul dacă e nevoie, apoi autentifică-te.'},
+  err_load_flyers:{de:'Prospekte laden',en:'Loading flyers',ro:'Încărcare prospecte'},
+  err_load_counts:{de:'Angebots-Zählung laden',en:'Loading offer counts',ro:'Încărcare număr oferte'},
+  load_fail_short:{de:'Fehler beim Laden.',en:'Load error.',ro:'Eroare la încărcare.'},
+  err_load_offers:{de:'Angebote laden',en:'Loading offers',ro:'Încărcare oferte'},
+  err_pdf_download:{de:'PDF-Download',en:'PDF download',ro:'Descărcare PDF'},
+  pdf_loading:{de:'PDF wird geladen…',en:'Loading PDF…',ro:'Se încarcă PDF-ul…'},
+  pdf_dl_fail:{de:'PDF konnte nicht geladen werden: {0}',en:'Could not load PDF: {0}',ro:'PDF-ul nu a putut fi încărcat: {0}'},
+  pdf_render_fail:{de:'PDF konnte nicht gerendert werden.',en:'Could not render PDF.',ro:'PDF-ul nu a putut fi redat.'},
+  pdf_render_err:{de:'PDF-Render-Fehler: {0}',en:'PDF render error: {0}',ro:'Eroare la redarea PDF: {0}'},
+  pdf_none:{de:'Kein PDF in Storage (pdf_path leer).',en:'No PDF in storage (pdf_path empty).',ro:'Niciun PDF în stocare (pdf_path gol).'},
+  pdf_page_missing:{de:'Seite {0} ist nicht im PDF (nur {1} Seiten).',en:'Page {0} is not in the PDF (only {1} pages).',ro:'Pagina {0} nu există în PDF (doar {1} pagini).'},
+  pdf_page_render_fail:{de:'PDF-Seite konnte nicht gerendert werden: {0}',en:'Could not render PDF page: {0}',ro:'Pagina PDF nu a putut fi redată: {0}'},
+  render_err_short:{de:'Render-Fehler.',en:'Render error.',ro:'Eroare de redare.'},
+  toast_download_ok:{de:'PDF geladen: {0} ({1})',en:'PDF downloaded: {0} ({1})',ro:'PDF descărcat: {0} ({1})'},
+  toast_download_fail:{de:'Download fehlgeschlagen: {0}',en:'Download failed: {0}',ro:'Descărcarea a eșuat: {0}'},
+  toast_parse_ok:{de:'Parse OK: {0} Angebote · {1} Seiten von {2} · Raster: {3} · LLM-Fehler: {4} · Status: {5}',en:'Parse OK: {0} offers · {1} of {2} pages · raster: {3} · LLM errors: {4} · status: {5}',ro:'Parsare OK: {0} oferte · {1} din {2} pagini · raster: {3} · erori LLM: {4} · status: {5}'},
+  toast_parse_fail:{de:'Parsen fehlgeschlagen: {0}',en:'Parse failed: {0}',ro:'Parsarea a eșuat: {0}'},
+  toast_discover:{de:'Lidl-Discover: {0} gefunden · {1} übernommen · {2} Fehler',en:'Lidl discover: {0} found · {1} upserted · {2} errors',ro:'Descoperire Lidl: {0} găsite · {1} preluate · {2} erori'},
+  toast_discover_fail:{de:'Discover fehlgeschlagen: {0}',en:'Discover failed: {0}',ro:'Descoperirea a eșuat: {0}'},
+  confirm_delete:{de:'Prospekt „{0}“ löschen?\nGestagte Angebote werden mitgelöscht.',en:'Delete flyer “{0}”?\nStaged offers will be deleted too.',ro:'Ștergi prospectul „{0}”?\nOfertele pregătite vor fi șterse și ele.'},
+  err_delete:{de:'Löschen',en:'Delete',ro:'Ștergere'},
+  toast_deleted:{de:'Prospekt gelöscht.',en:'Flyer deleted.',ro:'Prospect șters.'},
+  toast_choose_pdf:{de:'Bitte eine PDF-Datei wählen.',en:'Please choose a PDF file.',ro:'Alege un fișier PDF.'},
+  toast_fill_required:{de:'Bitte alle Pflichtfelder ausfüllen.',en:'Please fill in all required fields.',ro:'Completează toate câmpurile obligatorii.'},
+  err_upload:{de:'Upload',en:'Upload',ro:'Încărcare'},
+  err_registry:{de:'Registry-Eintrag',en:'Registry entry',ro:'Înregistrare în registru'},
+  toast_uploaded:{de:'PDF hochgeladen und registriert.',en:'PDF uploaded and registered.',ro:'PDF încărcat și înregistrat.'},
+  confirm_parse_now:{de:'Jetzt parsen? (erste 3 Seiten, dauert 1–3 Minuten)',en:'Parse now? (first 3 pages, takes 1–3 minutes)',ro:'Parsezi acum? (primele 3 pagini, durează 1–3 minute)'},
+  toast_not_found_refresh:{de:'Prospekt nicht gefunden — bitte aktualisieren.',en:'Flyer not found — please refresh.',ro:'Prospect negăsit — reîmprospătează.'},
+  toast_saved:{de:'Angebot gespeichert.',en:'Offer saved.',ro:'Ofertă salvată.'},
+  err_save:{de:'Speichern',en:'Save',ro:'Salvare'},
+  toast_invalid_num:{de:'Ungültige Zahl im Feld „{0}“.',en:'Invalid number in field “{0}”.',ro:'Număr invalid în câmpul „{0}”.'},
+  err_approve:{de:'Freigeben',en:'Approve',ro:'Aprobare'},
+  err_reject:{de:'Ablehnen',en:'Reject',ro:'Respingere'},
+  toast_no_clean:{de:'Keine sauberen offenen Angebote auf dieser Seite.',en:'No clean open offers on this page.',ro:'Nicio ofertă curată deschisă pe această pagină.'},
+  err_bulk:{de:'Sammel-Freigabe',en:'Bulk approve',ro:'Aprobare în masă'},
+  toast_bulk_ok:{de:'{0} Angebote freigegeben.',en:'{0} offers approved.',ro:'{0} oferte aprobate.'},
+  toast_no_flagged:{de:'Keine markierten Seiten.',en:'No flagged pages.',ro:'Nicio pagină semnalată.'},
+  err_load_config:{de:'Konfiguration laden',en:'Loading configuration',ro:'Încărcare configurare'},
+  err_bad_json:{de:'Ungültiges JSON: {0}',en:'Invalid JSON: {0}',ro:'JSON invalid: {0}'},
+  toast_bad_json:{de:'Ungültiges JSON bei {0}',en:'Invalid JSON at {0}',ro:'JSON invalid la {0}'},
+  err_save_config:{de:'Konfiguration speichern',en:'Saving configuration',ro:'Salvare configurare'},
+  toast_config_saved:{de:'„{0}“ gespeichert.',en:'“{0}” saved.',ro:'„{0}” salvat.'},
+  err_load_runs:{de:'Läufe laden',en:'Loading runs',ro:'Încărcare rulări'},
+  anom_rows:{de:'Zeilen mit Anomalien',en:'Rows with anomalies',ro:'Rânduri cu anomalii'},
+};
+
+const STATUS_LABEL = {
+  registered:{de:'registriert',en:'registered',ro:'înregistrat'},
+  fetched:{de:'geladen',en:'fetched',ro:'descărcat'},
+  parsing:{de:'parst',en:'parsing',ro:'se parsează'},
+  parsed:{de:'geparst',en:'parsed',ro:'parsat'},
+  needs_vision:{de:'braucht Vision',en:'needs vision',ro:'necesită viziune'},
+  reviewing:{de:'in Review',en:'reviewing',ro:'în verificare'},
+  approved:{de:'freigegeben',en:'approved',ro:'aprobat'},
+  auto_approved:{de:'auto-frei',en:'auto-approved',ro:'auto-aprobat'},
+  promoted:{de:'übernommen',en:'promoted',ro:'promovat'},
+  failed:{de:'fehlgeschlagen',en:'failed',ro:'eșuat'},
+  rejected:{de:'abgelehnt',en:'rejected',ro:'respins'},
+  pending:{de:'offen',en:'pending',ro:'în așteptare'},
+};
+
+const FLAG_LABEL = {
+  digit_check_failed:{de:'Ziffern-Check ✗',en:'Digit check failed',ro:'Verificare cifre eșuată'},
+  no_price:{de:'Kein Preis',en:'No price',ro:'Fără preț'},
+  price_out_of_band:{de:'Preis außerhalb Band',en:'Price out of band',ro:'Preț în afara intervalului'},
+  statt_not_higher:{de:'Statt ≤ Preis',en:'Old ≤ price',ro:'Preț vechi ≤ preț'},
+  uvp_over_ratio:{de:'UVP > 4× Preis',en:'RRP > 4× price',ro:'PVR > 4× preț'},
+  grundpreis_mismatch:{de:'Grundpreis ≠',en:'Base price ≠',ro:'Preț unitar ≠'},
+  duplicate_on_page:{de:'Duplikat',en:'Duplicate',ro:'Duplicat'},
+  low_confidence:{de:'Geringe Konfidenz',en:'Low confidence',ro:'Încredere scăzută'},
+  old_price_unverified:{de:'Alter Preis unbestätigt',en:'Old price unverified',ro:'Preț vechi neconfirmat'},
+  price_page_only:{de:'Preis nur auf Seite',en:'Price page-only',ro:'Preț doar pe pagină'},
+  price_unverified:{de:'Preis unbestätigt',en:'Price unverified',ro:'Preț neconfirmat'},
+  consensus_mismatch:{de:'Modelle uneinig',en:'Models disagree',ro:'Modele în dezacord'},
+  pct_mismatch:{de:'% inkonsistent',en:'% inconsistent',ro:'% inconsistent'},
+  api_mismatch:{de:'API abweichend',en:'API differs',ro:'API diferă'},
+};
+
+const SUPPORTED_LANGS = ['de','en','ro'];
+let LANG = (() => {
+  const s = localStorage.getItem('cms_lang');
+  if (s && SUPPORTED_LANGS.includes(s)) return s;
+  const n = (navigator.language || 'de').slice(0,2).toLowerCase();
+  return SUPPORTED_LANGS.includes(n) ? n : 'de';
+})();
+
+function t(key, ...args) {
+  const entry = I18N[key];
+  let s = entry ? (entry[LANG] ?? entry.de ?? key) : key;
+  args.forEach((a, i) => { s = s.replaceAll('{' + i + '}', a == null ? '' : String(a)); });
+  return s;
+}
+const statusLabel = (s) => (STATUS_LABEL[s]?.[LANG] ?? STATUS_LABEL[s]?.de ?? s);
+const flagLabel   = (f) => (FLAG_LABEL[f]?.[LANG] ?? FLAG_LABEL[f]?.de ?? f);
+
+function applyStaticI18n(root = document) {
+  root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  root.querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.dataset.i18nPh)); });
+  root.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+}
+
+function setLang(lang, rerender = true) {
+  if (!SUPPORTED_LANGS.includes(lang)) lang = 'de';
+  LANG = lang;
+  localStorage.setItem('cms_lang', lang);
+  document.documentElement.lang = lang;
+  const s1 = document.getElementById('langSel'); if (s1) s1.value = lang;
+  const s2 = document.getElementById('langSelAuth'); if (s2) s2.value = lang;
+  applyStaticI18n();
+  if (!rerender) return;
+  // Refresh dynamic surfaces from in-memory state (no refetch).
+  if (state.flyers.length) { renderAvailability(); renderFlyerTable(); populateReviewSelector(); }
+  if (state.tab === 'review' && rev.flyerId) renderReviewPage();
+  if (state.tab === 'config') loadConfig();
+  if (state.tab === 'runs') loadRuns();
+}
 
 /* ================= helpers ================= */
 const $ = (id) => document.getElementById(id);
@@ -365,7 +616,7 @@ function toast(msg, type = 'info', ms) {
   $('toasts').appendChild(el);
   setTimeout(() => el.remove(), ms ?? (type === 'error' ? 10000 : 5500));
 }
-function dbErr(prefix, error) { toast(prefix + ': ' + (error?.message || error), 'error'); }
+function dbErr(prefixKey, error) { toast(t(prefixKey) + ': ' + (error?.message || error), 'error'); }
 
 async function withBusy(btn, fn) {
   const orig = btn.innerHTML;
@@ -377,7 +628,7 @@ async function withBusy(btn, fn) {
 async function invokeFn(name, body) {
   const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) {
-    let msg = error.message || 'Edge-Funktion fehlgeschlagen';
+    let msg = error.message || t('err_edge');
     try {
       if (error.context && typeof error.context.json === 'function') {
         const j = await error.context.json();
@@ -386,7 +637,7 @@ async function invokeFn(name, body) {
     } catch (_) { /* body not json */ }
     throw new Error(msg);
   }
-  if (data && data.ok === false) throw new Error(data.error || data.detail || 'Funktion meldet ok=false');
+  if (data && data.ok === false) throw new Error(data.error || data.detail || t('err_ok_false'));
   return data;
 }
 
@@ -394,10 +645,10 @@ const fmtDE = (s) => { if (!s) return '–'; const [y,m,d] = String(s).slice(0,1
 const fmtISO = (d) => { const p = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
 function mondayOf(date) { const x = new Date(date); x.setHours(0,0,0,0); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; }
 function isoWeek(d) {
-  const t = new Date(d.valueOf()); t.setHours(0,0,0,0);
-  t.setDate(t.getDate() + 3 - ((t.getDay()+6)%7));
-  const w1 = new Date(t.getFullYear(), 0, 4);
-  return 1 + Math.round(((t - w1)/86400000 - 3 + ((w1.getDay()+6)%7))/7);
+  const t2 = new Date(d.valueOf()); t2.setHours(0,0,0,0);
+  t2.setDate(t2.getDate() + 3 - ((t2.getDay()+6)%7));
+  const w1 = new Date(t2.getFullYear(), 0, 4);
+  return 1 + Math.round(((t2 - w1)/86400000 - 3 + ((w1.getDay()+6)%7))/7);
 }
 function fmtBytes(b) {
   if (b == null) return '–';
@@ -405,14 +656,16 @@ function fmtBytes(b) {
   if (b > 1024) return (b/1024).toFixed(0) + ' KB';
   return b + ' B';
 }
-function fmtTs(s) { if (!s) return '–'; const d = new Date(s); return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+function fmtTs(s) { if (!s) return '–'; const d = new Date(s); const loc = LANG === 'de' ? 'de-DE' : LANG === 'ro' ? 'ro-RO' : 'en-GB'; return d.toLocaleDateString(loc) + ' ' + d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'}); }
 
 const RETAILERS = [
   ['lidl','Lidl'],['kaufland','Kaufland'],['aldi_sued','Aldi Süd'],['aldi_nord','Aldi Nord'],
   ['penny','Penny'],['netto_md','Netto MD'],['rewe','REWE'],['edeka','EDEKA'],['globus','Globus'],
 ];
 const RETAILER_LABEL = Object.fromEntries(RETAILERS);
-const SOURCE_LABEL = { schwarz_api: 'Schwarz API', manual_upload: 'Manuell' };
+const SOURCE_LABEL = { schwarz_api: 'Schwarz API', manual_upload: {de:'Manuell',en:'Manual',ro:'Manual'} };
+const sourceLabel = (s) => { const v = SOURCE_LABEL[s]; if (!v) return s || '–'; return typeof v === 'string' ? v : (v[LANG] ?? v.de); };
+const scopeLabel = (s) => s === 'national' ? t('national') : s === 'regional' ? t('regional') : (s || '–');
 
 /* ================= state ================= */
 const state = {
@@ -442,8 +695,8 @@ async function route() {
   if (error) {
     $('notAdminView').hidden = false;
     $('notAdminEmail').textContent = session.user.email || '';
-    $('notAdminErr').textContent = 'Fehler bei der Admin-Prüfung: ' + error.message;
-    dbErr('Admin-Prüfung', error);
+    $('notAdminErr').textContent = t('admin_check_fail', error.message);
+    dbErr('err_admin_check', error);
     return;
   }
   if (!data || data.length === 0) {
@@ -465,17 +718,20 @@ supabase.auth.onAuthStateChange((event, session) => {
 $('btnLogin').onclick = () => withBusy($('btnLogin'), async () => {
   $('authMsg').textContent = '';
   const { error } = await supabase.auth.signInWithPassword({ email: $('authEmail').value.trim(), password: $('authPw').value });
-  if (error) { $('authMsg').textContent = error.message; dbErr('Anmeldung', error); }
+  if (error) { $('authMsg').textContent = error.message; dbErr('err_login', error); }
 });
 $('btnSignup').onclick = () => withBusy($('btnSignup'), async () => {
   $('authMsg').textContent = '';
   const { data, error } = await supabase.auth.signUp({ email: $('authEmail').value.trim(), password: $('authPw').value });
-  if (error) { $('authMsg').textContent = error.message; dbErr('Registrierung', error); return; }
-  if (!data.session) $('authMsg').textContent = 'Registriert. Bitte ggf. E-Mail bestätigen und dann anmelden.';
+  if (error) { $('authMsg').textContent = error.message; dbErr('err_signup', error); return; }
+  if (!data.session) $('authMsg').textContent = t('msg_registered');
 });
-const doLogout = async () => { const { error } = await supabase.auth.signOut(); if (error) dbErr('Abmelden', error); };
+const doLogout = async () => { const { error } = await supabase.auth.signOut(); if (error) dbErr('err_logout', error); };
 $('btnLogout').onclick = doLogout;
 $('btnLogout2').onclick = doLogout;
+
+$('langSel').addEventListener('change', (e) => setLang(e.target.value));
+$('langSelAuth').addEventListener('change', (e) => setLang(e.target.value));
 
 /* ================= tabs ================= */
 $('tabNav').addEventListener('click', (e) => {
@@ -485,7 +741,7 @@ $('tabNav').addEventListener('click', (e) => {
 function setTab(name) {
   state.tab = name;
   document.querySelectorAll('#tabNav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  ['prospekte','review','config','runs'].forEach(t => { $('tab-' + t).hidden = (t !== name); });
+  ['prospekte','review','config','runs'].forEach(t2 => { $('tab-' + t2).hidden = (t2 !== name); });
   if (name === 'config') loadConfig();
   if (name === 'runs') loadRuns();
   if (name === 'review') initReviewTab();
@@ -493,7 +749,7 @@ function setTab(name) {
 
 /* ================= dashboard ================= */
 async function loadDashboard(showLoading) {
-  if (showLoading) $('flyerTableWrap').innerHTML = '<p class="muted">Lade…</p>';
+  if (showLoading) $('flyerTableWrap').innerHTML = `<p class="muted">${t('loading')}</p>`;
   const [fRes, oRes] = await Promise.all([
     supabase.from('flyer_registry').select('*')
       .order('week_start', { ascending: false })
@@ -501,8 +757,8 @@ async function loadDashboard(showLoading) {
       .order('retailer_id'),
     supabase.from('flyer_offers_staged').select('flyer_id,status,anomalies'),
   ]);
-  if (fRes.error) { dbErr('Prospekte laden', fRes.error); $('flyerTableWrap').innerHTML = '<p class="bad">Fehler beim Laden.</p>'; return; }
-  if (oRes.error) dbErr('Angebots-Zählung laden', oRes.error);
+  if (fRes.error) { dbErr('err_load_flyers', fRes.error); $('flyerTableWrap').innerHTML = `<p class="bad">${t('load_fail_short')}</p>`; return; }
+  if (oRes.error) dbErr('err_load_counts', oRes.error);
 
   state.flyers = fRes.data || [];
   state.agg = {};
@@ -529,10 +785,10 @@ function renderAvailability() {
     const to = fmtISO(end);
     return state.flyers.some(f => f.retailer_id === rid && f.week_start && f.week_start >= from && f.week_start <= to);
   };
-  let html = '<table class="avail"><tr><th>Woche</th>' +
+  let html = `<table class="avail"><tr><th>${esc(t('av_week_col'))}</th>` +
     RETAILERS.map(([,l]) => `<th>${esc(l)}</th>`).join('') + '</tr>';
   for (const w of weeks) {
-    html += `<tr><td class="nowrap">KW ${isoWeek(w)} · ab ${fmtDE(fmtISO(w))}</td>` +
+    html += `<tr><td class="nowrap">${esc(t('av_kw', isoWeek(w), fmtDE(fmtISO(w))))}</td>` +
       RETAILERS.map(([rid]) => has(rid, w)
         ? '<td class="av-yes">✓</td>' : '<td class="av-no">–</td>').join('') + '</tr>';
   }
@@ -542,19 +798,19 @@ function renderAvailability() {
 
 function renderFlyerTable() {
   if (!state.flyers.length) {
-    $('flyerTableWrap').innerHTML = '<p class="muted">Keine Prospekte registriert. „Lidl entdecken“ oder „PDF hochladen“.</p>';
+    $('flyerTableWrap').innerHTML = `<p class="muted">${esc(t('no_flyers'))}</p>`;
     return;
   }
   const rows = state.flyers.map(f => {
     const a = state.agg[f.id] || { pending: 0, approved: 0, rejected: 0, anom: 0, total: 0 };
     const busy = rowBusy.get(f.id);
-    const statusChip = `<span class="chip st-${escAttr(f.status)}"${f.status === 'failed' && f.error ? ` title="${escAttr(f.error)}"` : ''}>${esc(f.status)}</span>`;
-    const region = esc(f.region_scope || '–') + (f.regions && f.regions.note ? ` <span class="muted small">(${esc(f.regions.note)})</span>` : '');
+    const statusChip = `<span class="chip st-${escAttr(f.status)}"${f.status === 'failed' && f.error ? ` title="${escAttr(f.error)}"` : ''}>${esc(statusLabel(f.status))}</span>`;
+    const region = esc(scopeLabel(f.region_scope)) + (f.regions && f.regions.note ? ` <span class="muted small">(${esc(f.regions.note)})</span>` : '');
     const offers = a.total === 0 ? '<span class="muted">–</span>' :
-      `<span class="chip st-pending" title="pending">${a.pending}</span> ` +
-      `<span class="chip st-approved" title="approved">${a.approved}</span> ` +
-      `<span class="chip st-rejected" title="rejected">${a.rejected}</span>` +
-      (a.anom > 0 ? ` <span class="chip chip-warn" title="Zeilen mit Anomalien">&#9888; ${a.anom}</span>` : '');
+      `<span class="chip st-pending" title="${esc(statusLabel('pending'))}">${a.pending}</span> ` +
+      `<span class="chip st-approved" title="${esc(statusLabel('approved'))}">${a.approved}</span> ` +
+      `<span class="chip st-rejected" title="${esc(statusLabel('rejected'))}">${a.rejected}</span>` +
+      (a.anom > 0 ? ` <span class="chip chip-warn" title="${esc(t('anom_rows'))}">&#9888; ${a.anom}</span>` : '');
 
     let actions;
     if (busy) {
@@ -562,23 +818,23 @@ function renderFlyerTable() {
     } else {
       const btns = [];
       if (f.source === 'schwarz_api' && !f.pdf_path)
-        btns.push(`<button class="btn btn-xs" data-action="download" data-id="${escAttr(f.id)}">Download</button>`);
+        btns.push(`<button class="btn btn-xs" data-action="download" data-id="${escAttr(f.id)}">${esc(t('act_download'))}</button>`);
       if (f.pdf_path && !(f.pages_parsed > 0))
-        btns.push(`<button class="btn btn-xs btn-primary" data-action="parse" data-id="${escAttr(f.id)}">Parsen (3 S.)</button>`);
+        btns.push(`<button class="btn btn-xs btn-primary" data-action="parse" data-id="${escAttr(f.id)}">${esc(t('act_parse', (f.parse_limit || 3)))}</button>`);
       if (f.pdf_path && f.pages_parsed > 0)
-        btns.push(`<button class="btn btn-xs" data-action="parse" data-id="${escAttr(f.id)}">Neu parsen</button>`);
+        btns.push(`<button class="btn btn-xs" data-action="parse" data-id="${escAttr(f.id)}">${esc(t('act_reparse'))}</button>`);
       if (a.total > 0 || f.pdf_path)
-        btns.push(`<button class="btn btn-xs" data-action="review" data-id="${escAttr(f.id)}">Review öffnen</button>`);
-      btns.push(`<button class="btn btn-xs btn-danger" data-action="delete" data-id="${escAttr(f.id)}">Löschen</button>`);
+        btns.push(`<button class="btn btn-xs" data-action="review" data-id="${escAttr(f.id)}">${esc(t('act_review'))}</button>`);
+      btns.push(`<button class="btn btn-xs btn-danger" data-action="delete" data-id="${escAttr(f.id)}">${esc(t('act_delete'))}</button>`);
       actions = `<div class="actions">${btns.join('')}</div>`;
     }
     return `<tr>
       <td class="nowrap"><strong>${esc(RETAILER_LABEL[f.retailer_id] || f.retailer_id)}</strong></td>
-      <td>${esc(f.title || '–')}${f.viewer_url ? ` <a href="${esc(f.viewer_url)}" target="_blank" rel="noopener" title="Online-Prospekt des Händlers öffnen">🔗</a>` : ''}${f.external_id ? `<div class="muted small">${esc(f.external_id)}</div>` : ''}</td>
-      <td class="nowrap">${f.week_start ? 'KW ' + isoWeek(new Date(f.week_start + 'T12:00:00')) + '<div class="muted small">' + fmtDE(f.week_start) + '</div>' : '–'}</td>
+      <td>${esc(f.title || '–')}${f.viewer_url ? ` <a href="${esc(f.viewer_url)}" target="_blank" rel="noopener" title="${esc(t('up_viewer'))}">🔗</a>` : ''}${f.external_id ? `<div class="muted small">${esc(f.external_id)}</div>` : ''}</td>
+      <td class="nowrap">${f.week_start ? t('av_week_col') + ' ' + isoWeek(new Date(f.week_start + 'T12:00:00')) + '<div class="muted small">' + fmtDE(f.week_start) + '</div>' : '–'}</td>
       <td class="nowrap small">${fmtDE(f.valid_from)}<br>– ${fmtDE(f.valid_to)}</td>
       <td>${region}</td>
-      <td class="nowrap">${esc(SOURCE_LABEL[f.source] || f.source || '–')}</td>
+      <td class="nowrap">${esc(sourceLabel(f.source))}</td>
       <td>${statusChip}</td>
       <td class="nowrap">${f.pages_parsed ?? 0}/${f.page_count ?? '?'}${f.pdf_bytes ? `<div class="muted small">${fmtBytes(f.pdf_bytes)}</div>` : ''}</td>
       <td class="nowrap">${offers}</td>
@@ -587,7 +843,7 @@ function renderFlyerTable() {
   }).join('');
 
   $('flyerTableWrap').innerHTML = `<table class="list">
-    <tr><th>Retailer</th><th>Titel</th><th>Woche</th><th>Gültig</th><th>Region</th><th>Quelle</th><th>Status</th><th>Seiten</th><th>Angebote</th><th>Aktionen</th></tr>
+    <tr><th>${esc(t('th_retailer'))}</th><th>${esc(t('th_title'))}</th><th>${esc(t('th_week'))}</th><th>${esc(t('th_valid'))}</th><th>${esc(t('th_region'))}</th><th>${esc(t('th_source'))}</th><th>${esc(t('th_status'))}</th><th>${esc(t('th_pages'))}</th><th>${esc(t('th_offers'))}</th><th>${esc(t('th_actions'))}</th></tr>
     ${rows}</table>`;
 }
 
@@ -599,12 +855,12 @@ $('flyerTableWrap').addEventListener('click', async (e) => {
   if (!flyer) return;
 
   if (b.dataset.action === 'download') {
-    rowBusy.set(id, { start: Date.now(), label: 'Download' });
+    rowBusy.set(id, { start: Date.now(), label: t('act_download') });
     renderFlyerTable();
     try {
       const d = await invokeFn('flyer-fetch', { action: 'download', flyer_id: id });
-      toast(`PDF geladen: ${d.path || ''} (${fmtBytes(d.bytes)})`, 'success');
-    } catch (err) { toast('Download fehlgeschlagen: ' + err.message, 'error'); }
+      toast(t('toast_download_ok', d.path || '', fmtBytes(d.bytes)), 'success');
+    } catch (err) { toast(t('toast_download_fail', err.message), 'error'); }
     rowBusy.delete(id);
     await loadDashboard(false);
   }
@@ -616,10 +872,10 @@ $('flyerTableWrap').addEventListener('click', async (e) => {
     await loadReviewFlyer(id);
   }
   else if (b.dataset.action === 'delete') {
-    if (!confirm(`Prospekt „${flyer.title || flyer.retailer_id}“ löschen?\nGestagte Angebote werden mitgelöscht.`)) return;
+    if (!confirm(t('confirm_delete', flyer.title || flyer.retailer_id))) return;
     const { error } = await supabase.from('flyer_registry').delete().eq('id', id);
-    if (error) { dbErr('Löschen', error); return; }
-    toast('Prospekt gelöscht.', 'success');
+    if (error) { dbErr('err_delete', error); return; }
+    toast(t('toast_deleted'), 'success');
     if (rev.flyerId === id) { rev.flyerId = null; rev.offers = []; rev.pdfDoc = null; }
     await loadDashboard(false);
   }
@@ -627,18 +883,15 @@ $('flyerTableWrap').addEventListener('click', async (e) => {
 
 async function runParse(flyerId) {
   if (rowBusy.has(flyerId)) return;
-  rowBusy.set(flyerId, { start: Date.now(), label: 'Parsen läuft' });
+  rowBusy.set(flyerId, { start: Date.now(), label: t('tab_review') });
   renderFlyerTable();
   try {
-    // One page per invocation: a multi-page request can exceed the Supabase
-    // gateway's 150s idle timeout when the LLM is slow/busy. Page limit
-    // comes from the flyer's parse_limit (default 3).
     const flyer = state.flyers.find((f) => f.id === flyerId);
     const limit = (flyer && flyer.parse_limit) || 3;
     let staged = 0, raster = 0, failures = 0, pageCount = null, status = null;
     for (let p = 1; p <= limit; p++) {
       if (pageCount != null && p > pageCount) break;
-      rowBusy.set(flyerId, { start: Date.now(), label: `Parse Seite ${p}/${limit}` });
+      rowBusy.set(flyerId, { start: Date.now(), label: `${t('th_pages')} ${p}/${limit}` });
       renderFlyerTable();
       const d = await invokeFn('flyer-parse', { flyer_id: flyerId, page_from: p, page_to: p });
       staged += d.staged ?? 0;
@@ -647,9 +900,9 @@ async function runParse(flyerId) {
       pageCount = d.page_count ?? pageCount;
       status = d.flyer_status ?? status;
     }
-    toast(`Parse OK: ${staged} Angebote · ${limit} Seiten von ${pageCount ?? '?'} · Raster: ${raster} · LLM-Fehler: ${failures} · Status: ${status ?? '–'}`, failures ? 'error' : 'success', 9000);
+    toast(t('toast_parse_ok', staged, limit, pageCount ?? '?', raster, failures, status ? statusLabel(status) : '–'), failures ? 'error' : 'success', 9000);
   } catch (err) {
-    toast('Parsen fehlgeschlagen: ' + err.message, 'error');
+    toast(t('toast_parse_fail', err.message), 'error');
   }
   rowBusy.delete(flyerId);
   await loadDashboard(false);
@@ -660,9 +913,9 @@ $('btnDiscover').onclick = () => withBusy($('btnDiscover'), async () => {
   try {
     const d = await invokeFn('flyer-fetch', { action: 'discover' });
     const errs = Array.isArray(d.errors) ? d.errors.length : (d.errors ?? 0);
-    toast(`Lidl-Discover: ${d.found ?? 0} gefunden · ${d.upserted ?? 0} übernommen · ${errs} Fehler`, errs ? 'error' : 'success');
+    toast(t('toast_discover', d.found ?? 0, d.upserted ?? 0, errs), errs ? 'error' : 'success');
     await loadDashboard(false);
-  } catch (err) { toast('Discover fehlgeschlagen: ' + err.message, 'error'); }
+  } catch (err) { toast(t('toast_discover_fail', err.message), 'error'); }
 });
 $('btnRefresh').onclick = () => withBusy($('btnRefresh'), () => loadDashboard(false));
 
@@ -679,26 +932,26 @@ $('upWeek').addEventListener('change', () => {
   const v = $('upWeek').value;
   if (!v) { $('upWeekHint').textContent = ''; return; }
   const d = new Date(v + 'T12:00:00');
-  $('upWeekHint').textContent = d.getDay() === 1 ? '' : 'Hinweis: gewähltes Datum ist kein Montag.';
+  $('upWeekHint').textContent = d.getDay() === 1 ? '' : t('hint_not_monday');
 });
 
 $('uploadForm').addEventListener('submit', (e) => {
   e.preventDefault();
   withBusy($('upSubmit'), async () => {
     const file = $('upFile').files[0];
-    if (!file) { toast('Bitte eine PDF-Datei wählen.', 'error'); return; }
+    if (!file) { toast(t('toast_choose_pdf'), 'error'); return; }
     const retailer = $('upRetailer').value;
     const title = $('upTitle').value.trim();
     const week = $('upWeek').value;
     const from = $('upFrom').value;
     const to = $('upTo').value;
-    if (!title || !week || !from || !to) { toast('Bitte alle Pflichtfelder ausfüllen.', 'error'); return; }
+    if (!title || !week || !from || !to) { toast(t('toast_fill_required'), 'error'); return; }
     const note = $('upRegionNote').value.trim();
     const safeName = file.name.replace(/[^\w.\-]+/g, '_');
     const path = `manual/${retailer}/${week}/${safeName}`;
 
     const up = await supabase.storage.from('flyers').upload(path, file, { upsert: true, contentType: 'application/pdf' });
-    if (up.error) { dbErr('Upload', up.error); return; }
+    if (up.error) { dbErr('err_upload', up.error); return; }
 
     const { data: ins, error } = await supabase.from('flyer_registry').insert({
       retailer_id: retailer,
@@ -714,12 +967,12 @@ $('uploadForm').addEventListener('submit', (e) => {
       viewer_url: $('upViewerUrl').value.trim() || null,
       status: 'fetched',
     }).select().single();
-    if (error) { dbErr('Registry-Eintrag', error); return; }
+    if (error) { dbErr('err_registry', error); return; }
 
     $('uploadModal').hidden = true;
-    toast('PDF hochgeladen und registriert.', 'success');
+    toast(t('toast_uploaded'), 'success');
     await loadDashboard(false);
-    if (confirm('Jetzt parsen? (erste 3 Seiten, dauert 1–3 Minuten)')) runParse(ins.id);
+    if (confirm(t('confirm_parse_now'))) runParse(ins.id);
   });
 });
 
@@ -727,6 +980,7 @@ $('uploadForm').addEventListener('submit', (e) => {
 const rev = {
   flyerId: null, offers: [], page: 1, maxPage: 1,
   pdfDoc: null, pdfFlyerId: null, scale: 1, renderToken: 0, loading: false,
+  tx: 0, ty: 0, didDrag: false,
 };
 
 function reviewEligibleFlyers() {
@@ -738,7 +992,7 @@ function populateReviewSelector() {
   const opts = reviewEligibleFlyers().map(f =>
     `<option value="${escAttr(f.id)}"${f.id === rev.flyerId ? ' selected' : ''}>` +
     `${esc(RETAILER_LABEL[f.retailer_id] || f.retailer_id)} · ${esc(f.title || '?')} · ${fmtDE(f.week_start)}</option>`).join('');
-  sel.innerHTML = '<option value="">– Prospekt wählen –</option>' + opts;
+  sel.innerHTML = `<option value="">${esc(t('select_flyer'))}</option>` + opts;
   if (rev.flyerId) sel.value = rev.flyerId;
 }
 
@@ -756,22 +1010,31 @@ $('revFlyerSel').addEventListener('change', () => {
 });
 $('revPrev').onclick = () => { if (rev.page > 1) { rev.page--; renderReviewPage(); } };
 $('revNext').onclick = () => { if (rev.page < rev.maxPage) { rev.page++; renderReviewPage(); } };
+$('revNextFlag').onclick = () => {
+  const flaggedPages = [...new Set(rev.offers
+    .filter(o => Array.isArray(o.anomalies) && o.anomalies.length > 0)
+    .map(o => o.page_number))].sort((a,b) => a - b);
+  if (!flaggedPages.length) { toast(t('toast_no_flagged'), 'info'); return; }
+  const next = flaggedPages.find(p => p > rev.page) ?? flaggedPages[0];
+  rev.page = next;
+  renderReviewPage();
+};
 
 async function loadReviewFlyer(flyerId, keepPage) {
   if (rev.loading) return;
   rev.loading = true;
   try {
     const flyer = state.flyers.find(f => f.id === flyerId);
-    if (!flyer) { toast('Prospekt nicht gefunden — bitte aktualisieren.', 'error'); return; }
+    if (!flyer) { toast(t('toast_not_found_refresh'), 'error'); return; }
     const samePdf = rev.pdfFlyerId === flyerId && rev.pdfDoc;
     rev.flyerId = flyerId;
     $('revFlyerSel').value = flyerId;
     if (!keepPage) rev.page = 1;
-    $('offerPane').innerHTML = '<p class="muted">Lade Angebote…</p>';
+    $('offerPane').innerHTML = `<p class="muted">${t('loading_offers')}</p>`;
 
     const { data, error } = await supabase.from('flyer_offers_staged').select('*')
       .eq('flyer_id', flyerId).order('page_number').order('tile_index');
-    if (error) { dbErr('Angebote laden', error); $('offerPane').innerHTML = '<p class="bad">Fehler beim Laden.</p>'; return; }
+    if (error) { dbErr('err_load_offers', error); $('offerPane').innerHTML = `<p class="bad">${t('load_fail_short')}</p>`; return; }
     rev.offers = data || [];
 
     const maxOfferPage = rev.offers.reduce((m, o) => Math.max(m, o.page_number || 0), 0);
@@ -782,23 +1045,23 @@ async function loadReviewFlyer(flyerId, keepPage) {
       rev.pdfDoc = null; rev.pdfFlyerId = flyerId;
       clearPdfPane('');
       if (flyer.pdf_path) {
-        $('pdfMsg').textContent = 'PDF wird geladen…';
+        $('pdfMsg').textContent = t('pdf_loading');
         const dl = await supabase.storage.from('flyers').download(flyer.pdf_path);
         if (dl.error) {
-          dbErr('PDF-Download', dl.error);
-          $('pdfMsg').textContent = 'PDF konnte nicht geladen werden: ' + dl.error.message;
+          dbErr('err_pdf_download', dl.error);
+          $('pdfMsg').textContent = t('pdf_dl_fail', dl.error.message);
         } else {
           try {
             const buf = await dl.data.arrayBuffer();
             const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
             if (rev.pdfFlyerId === flyerId) { rev.pdfDoc = doc; $('pdfMsg').textContent = ''; }
           } catch (err) {
-            toast('PDF-Render-Fehler: ' + (err.message || err), 'error');
-            $('pdfMsg').textContent = 'PDF konnte nicht gerendert werden.';
+            toast(t('pdf_render_err', err.message || err), 'error');
+            $('pdfMsg').textContent = t('pdf_render_fail');
           }
         }
       } else {
-        $('pdfMsg').textContent = 'Kein PDF in Storage (pdf_path leer).';
+        $('pdfMsg').textContent = t('pdf_none');
       }
     }
     renderReviewPage();
@@ -811,6 +1074,8 @@ function clearPdfPane(msg) {
   const c = $('pdfCanvas');
   c.width = 0; c.height = 0; c.style.width = '0px'; c.style.height = '0px';
   $('pdfOverlay').innerHTML = '';
+  $('panHint').hidden = true;
+  resetPan();
   if (msg !== undefined) $('pdfMsg').textContent = msg;
 }
 
@@ -819,7 +1084,7 @@ function pageOffers() {
 }
 
 function renderReviewPage() {
-  $('revPageLabel').textContent = `Seite ${rev.page} / ${rev.maxPage}`;
+  $('revPageLabel').textContent = t('page_label', rev.page, rev.maxPage);
   $('revPrev').disabled = rev.page <= 1;
   $('revNext').disabled = rev.page >= rev.maxPage;
   renderOfferPane();
@@ -836,24 +1101,71 @@ function renderCounts() {
     else if (x.status === 'rejected') c.rejected++;
   }
   $('revCounts').innerHTML =
-    `<span class="chip st-pending">${c.pending} offen</span>` +
-    `<span class="chip st-approved">${c.approved} frei</span>` +
-    `<span class="chip st-rejected">${c.rejected} abgelehnt</span>`;
+    `<span class="chip st-pending">${esc(t('cnt_open', c.pending))}</span>` +
+    `<span class="chip st-approved">${esc(t('cnt_approved', c.approved))}</span>` +
+    `<span class="chip st-rejected">${esc(t('cnt_rejected', c.rejected))}</span>`;
 }
+
+/* ---- draggable / pannable PDF pane ---- */
+function resetPan() { rev.tx = 0; rev.ty = 0; applyPan(); }
+function applyPan() { $('pdfDrag').style.transform = `translate(${Math.round(rev.tx)}px, ${Math.round(rev.ty)}px)`; }
+function clampPan() {
+  const wrap = $('pdfWrap');
+  const c = $('pdfCanvas');
+  const wrapH = wrap.clientHeight, wrapW = wrap.clientWidth;
+  const cw = c.clientWidth || 0, ch = c.clientHeight || 0;
+  const minX = Math.min(0, wrapW - cw);
+  const minY = Math.min(0, wrapH - ch);
+  rev.tx = Math.min(0, Math.max(minX, rev.tx));
+  rev.ty = Math.min(0, Math.max(minY, rev.ty));
+}
+(function initPanControls() {
+  const wrap = $('pdfWrap');
+  let dragging = false, sx = 0, sy = 0, moved = 0;
+  wrap.addEventListener('pointerdown', (e) => {
+    if (!rev.pdfDoc) return;
+    dragging = true; moved = 0; sx = e.clientX; sy = e.clientY;
+    wrap.classList.add('grabbing');
+    try { wrap.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  wrap.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    sx = e.clientX; sy = e.clientY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    rev.tx += dx; rev.ty += dy;
+    clampPan(); applyPan();
+  });
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    wrap.classList.remove('grabbing');
+    rev.didDrag = moved > 4;
+    setTimeout(() => { rev.didDrag = false; }, 60);
+  };
+  wrap.addEventListener('pointerup', endDrag);
+  wrap.addEventListener('pointercancel', endDrag);
+  wrap.addEventListener('wheel', (e) => {
+    if (!rev.pdfDoc) return;
+    e.preventDefault();
+    rev.ty -= e.deltaY; rev.tx -= e.deltaX;
+    clampPan(); applyPan();
+  }, { passive: false });
+})();
 
 async function renderPdfPage() {
   const token = ++rev.renderToken;
   if (!rev.pdfDoc) { clearPdfPane(undefined); return; }
   if (rev.page > rev.pdfDoc.numPages) {
-    clearPdfPane(`Seite ${rev.page} ist nicht im PDF (nur ${rev.pdfDoc.numPages} Seiten).`);
+    clearPdfPane(t('pdf_page_missing', rev.page, rev.pdfDoc.numPages));
     return;
   }
   try {
     const page = await rev.pdfDoc.getPage(rev.page);
     if (token !== rev.renderToken) return;
     const base = page.getViewport({ scale: 1 });
-    const pane = document.querySelector('.pdf-pane');
-    const paneW = Math.max(320, Math.min(680, (pane?.clientWidth || 700) - 20));
+    const wrap = $('pdfWrap');
+    const paneW = Math.max(320, (wrap.clientWidth || 680));
     const s = paneW / base.width;
     rev.scale = s;
     const vp = page.getViewport({ scale: s });
@@ -870,11 +1182,14 @@ async function renderPdfPage() {
     }).promise;
     if (token !== rev.renderToken) return;
     $('pdfMsg').textContent = '';
+    resetPan();
+    // Show the pan hint only when the page is taller than the viewport.
+    $('panHint').hidden = !(canvas.clientHeight > wrap.clientHeight + 4);
     renderOverlay();
   } catch (err) {
     if (token === rev.renderToken) {
-      toast('PDF-Seite konnte nicht gerendert werden: ' + (err.message || err), 'error');
-      $('pdfMsg').textContent = 'Render-Fehler.';
+      toast(t('pdf_page_render_fail', err.message || err), 'error');
+      $('pdfMsg').textContent = t('render_err_short');
     }
   }
 }
@@ -890,6 +1205,7 @@ function renderOverlay() {
 }
 
 $('pdfOverlay').addEventListener('click', (e) => {
+  if (rev.didDrag) return; // ignore the click that ends a drag
   const chip = e.target.closest('.bbox-chip');
   if (!chip) return;
   const card = document.getElementById('card-' + chip.dataset.oid);
@@ -906,52 +1222,52 @@ const NUM_FIELDS = ['price_eur', 'old_price_eur', 'discount_pct', 'grundpreis_eu
 function offerCardHTML(o, idx) {
   const conf = o.confidence == null ? '–' : Number(o.confidence).toFixed(2);
   const anoms = Array.isArray(o.anomalies) ? o.anomalies : [];
-  const fld = (label, f, val, cls = '') =>
-    `<label class="fld ${cls}">${label}<input data-f="${f}" type="text" value="${escAttr(val)}"></label>`;
-  const num = (label, f, val, cls = '') =>
-    `<label class="fld ${cls}">${label}<input data-f="${f}" type="number" step="0.01" value="${val == null ? '' : escAttr(val)}"></label>`;
+  const fld = (labelKey, f, val, cls = '') =>
+    `<label class="fld ${cls}">${esc(t(labelKey))}<input data-f="${f}" type="text" value="${escAttr(val)}"></label>`;
+  const num = (labelKey, f, val, cls = '') =>
+    `<label class="fld ${cls}">${esc(t(labelKey))}<input data-f="${f}" type="number" step="0.01" value="${val == null ? '' : escAttr(val)}"></label>`;
 
   return `<div class="offer-card" id="card-${escAttr(o.id)}" data-oid="${escAttr(o.id)}">
     <div class="offer-head">
       <span class="tile-no">${idx}</span>
-      <span class="chip st-${escAttr(o.status)}">${esc(o.status)}</span>
-      ${o.edited ? '<span class="chip chip-edited">bearbeitet</span>' : ''}
-      <span class="muted small">Konf. ${esc(conf)}</span>
-      <span class="${o.digit_check_passed ? 'ok' : 'bad'}" title="Ziffern-Plausibilitätscheck">${o.digit_check_passed ? '✓' : '✗'} Ziffern</span>
-      ${anoms.map(a => `<span class="chip chip-anom">${esc(a)}</span>`).join('')}
+      <span class="chip st-${escAttr(o.status)}">${esc(statusLabel(o.status))}</span>
+      ${o.edited ? `<span class="chip chip-edited">${esc(t('chip_edited'))}</span>` : ''}
+      <span class="muted small">${esc(t('lbl_conf'))} ${esc(conf)}</span>
+      <span class="${o.digit_check_passed ? 'ok' : 'bad'}" title="digit check">${o.digit_check_passed ? '✓' : '✗'} ${esc(t('lbl_digits'))}</span>
+      ${anoms.map(a => `<span class="chip chip-anom" title="${escAttr(a)}">${esc(flagLabel(a))}</span>`).join('')}
       <span class="spacer"></span>
       <span class="muted small nowrap">${fmtDE(o.valid_from)} – ${fmtDE(o.valid_to)}</span>
     </div>
     <div class="fgrid">
-      ${fld('Titel', 'title', o.title, 'w2')}
-      ${fld('Marke', 'brand', o.brand)}
-      ${num('Preis €', 'price_eur', o.price_eur)}
-      ${num('Alter Preis €', 'old_price_eur', o.old_price_eur)}
-      ${num('Rabatt %', 'discount_pct', o.discount_pct)}
-      ${fld('Packung', 'pack_text', o.pack_text)}
-      ${fld('Grundpreis (Text)', 'grundpreis_text', o.grundpreis_text)}
+      ${fld('f_title', 'title', o.title, 'w2')}
+      ${fld('f_brand', 'brand', o.brand)}
+      ${num('f_price', 'price_eur', o.price_eur)}
+      ${num('f_old_price', 'old_price_eur', o.old_price_eur)}
+      ${num('f_discount', 'discount_pct', o.discount_pct)}
+      ${fld('f_pack', 'pack_text', o.pack_text)}
+      ${fld('f_grundpreis_text', 'grundpreis_text', o.grundpreis_text)}
       <div style="display:flex; gap:6px">
-        ${num('GP €', 'grundpreis_eur', o.grundpreis_eur)}
-        ${fld('GP-Einheit', 'grundpreis_unit', o.grundpreis_unit)}
+        ${num('f_gp_eur', 'grundpreis_eur', o.grundpreis_eur)}
+        ${fld('f_gp_unit', 'grundpreis_unit', o.grundpreis_unit)}
       </div>
-      ${fld('Herkunft', 'origin', o.origin)}
-      ${fld('Notizen', 'notes', o.notes, 'w2')}
-      <label class="fld chk"><input type="checkbox" data-f="requires_app"${o.requires_app ? ' checked' : ''}> Nur mit App</label>
-      ${fld('Reviewer-Notiz', 'reviewer_note', o.reviewer_note, 'w2')}
+      ${fld('f_origin', 'origin', o.origin)}
+      ${fld('f_notes', 'notes', o.notes, 'w2')}
+      <label class="fld chk"><input type="checkbox" data-f="requires_app"${o.requires_app ? ' checked' : ''}> ${esc(t('f_requires_app'))}</label>
+      ${fld('f_reviewer_note', 'reviewer_note', o.reviewer_note, 'w2')}
     </div>
-    <details><summary>Rohtext</summary><pre>${esc(o.raw_text || '(leer)')}</pre></details>
+    <details><summary>${esc(t('rawtext'))}</summary><pre>${esc(o.raw_text || t('empty'))}</pre></details>
     <div class="offer-actions">
-      <button class="btn btn-xs" data-act="save">Speichern</button>
-      <button class="btn btn-xs btn-approve" data-act="approve">✓ Freigeben</button>
-      <button class="btn btn-xs btn-danger" data-act="reject">✗ Ablehnen</button>
+      <button class="btn btn-xs" data-act="save">${esc(t('save'))}</button>
+      <button class="btn btn-xs btn-approve" data-act="approve">${esc(t('approve'))}</button>
+      <button class="btn btn-xs btn-danger" data-act="reject">${esc(t('reject'))}</button>
     </div>
   </div>`;
 }
 
 function renderOfferPane() {
   const offers = pageOffers();
-  if (!rev.flyerId) { $('offerPane').innerHTML = '<p class="muted">Prospekt wählen.</p>'; return; }
-  if (!offers.length) { $('offerPane').innerHTML = '<p class="muted card">Keine Angebote auf dieser Seite.</p>'; return; }
+  if (!rev.flyerId) { $('offerPane').innerHTML = `<p class="muted">${t('choose_flyer')}</p>`; return; }
+  if (!offers.length) { $('offerPane').innerHTML = `<p class="muted card">${t('no_offers_page')}</p>`; return; }
   $('offerPane').innerHTML = offers.map((o, i) => offerCardHTML(o, i + 1)).join('');
 }
 
@@ -993,12 +1309,12 @@ $('offerPane').addEventListener('click', async (e) => {
         payload[f] = v === '' ? null : v;
       }
     });
-    if (invalid) { toast(`Ungültige Zahl im Feld „${invalid}“.`, 'error'); return; }
+    if (invalid) { toast(t('toast_invalid_num', invalid), 'error'); return; }
     await withBusy(btn, async () => {
       const { error } = await supabase.from('flyer_offers_staged').update(payload).eq('id', oid);
-      if (error) { dbErr('Speichern', error); return; }
+      if (error) { dbErr('err_save', error); return; }
       Object.assign(offer, payload);
-      toast('Angebot gespeichert.', 'success', 2500);
+      toast(t('toast_saved'), 'success', 2500);
       rerenderCard(offer);
     });
   }
@@ -1006,7 +1322,7 @@ $('offerPane').addEventListener('click', async (e) => {
     const status = btn.dataset.act === 'approve' ? 'approved' : 'rejected';
     await withBusy(btn, async () => {
       const { error } = await supabase.from('flyer_offers_staged').update({ status }).eq('id', oid);
-      if (error) { dbErr(status === 'approved' ? 'Freigeben' : 'Ablehnen', error); return; }
+      if (error) { dbErr(status === 'approved' ? 'err_approve' : 'err_reject', error); return; }
       offer.status = status;
       rerenderCard(offer);
       renderCounts();
@@ -1019,28 +1335,28 @@ $('btnApproveClean').onclick = () => withBusy($('btnApproveClean'), async () => 
     o.status === 'pending' &&
     o.digit_check_passed &&
     (!Array.isArray(o.anomalies) || o.anomalies.length === 0));
-  if (!clean.length) { toast('Keine sauberen offenen Angebote auf dieser Seite.', 'info'); return; }
+  if (!clean.length) { toast(t('toast_no_clean'), 'info'); return; }
   const ids = clean.map(o => o.id);
   const { error } = await supabase.from('flyer_offers_staged').update({ status: 'approved' }).in('id', ids);
-  if (error) { dbErr('Sammel-Freigabe', error); return; }
+  if (error) { dbErr('err_bulk', error); return; }
   clean.forEach(o => { o.status = 'approved'; });
-  toast(`${clean.length} Angebote freigegeben.`, 'success');
+  toast(t('toast_bulk_ok', clean.length), 'success');
   renderOfferPane();
   renderCounts();
 });
 
 /* ================= konfiguration ================= */
 async function loadConfig() {
-  $('cfgWrap').innerHTML = '<p class="muted">Lade…</p>';
+  $('cfgWrap').innerHTML = `<p class="muted">${t('loading')}</p>`;
   const { data, error } = await supabase.from('flyer_pipeline_config').select('*').order('key');
-  if (error) { dbErr('Konfiguration laden', error); $('cfgWrap').innerHTML = '<p class="bad">Fehler beim Laden.</p>'; return; }
-  if (!data || !data.length) { $('cfgWrap').innerHTML = '<p class="muted">Keine Konfigurationseinträge.</p>'; return; }
+  if (error) { dbErr('err_load_config', error); $('cfgWrap').innerHTML = `<p class="bad">${t('load_fail_short')}</p>`; return; }
+  if (!data || !data.length) { $('cfgWrap').innerHTML = `<p class="muted">${t('no_config')}</p>`; return; }
   $('cfgWrap').innerHTML = data.map(row => {
     const json = JSON.stringify(row.value, null, 2) ?? 'null';
     const rows = Math.min(14, Math.max(4, json.split('\n').length + 1));
     return `<div class="cfg-row" data-key="${escAttr(row.key)}">
       <div class="cfg-head"><strong><code>${esc(row.key)}</code></strong>
-        <button class="btn btn-xs" data-cfg-save>Speichern</button></div>
+        <button class="btn btn-xs" data-cfg-save>${esc(t('save'))}</button></div>
       <textarea rows="${rows}" data-cfg-value>${esc(json)}</textarea>
       <div class="cfg-err"></div>
     </div>`;
@@ -1056,29 +1372,29 @@ $('cfgWrap').addEventListener('click', async (e) => {
   errEl.textContent = '';
   let value;
   try { value = JSON.parse(row.querySelector('[data-cfg-value]').value); }
-  catch (err) { errEl.textContent = 'Ungültiges JSON: ' + err.message; toast('Ungültiges JSON bei ' + key, 'error'); return; }
+  catch (err) { errEl.textContent = t('err_bad_json', err.message); toast(t('toast_bad_json', key), 'error'); return; }
   await withBusy(btn, async () => {
     const { error } = await supabase.from('flyer_pipeline_config').update({ value }).eq('key', key);
-    if (error) { errEl.textContent = error.message; dbErr('Konfiguration speichern', error); return; }
-    toast(`„${key}“ gespeichert.`, 'success', 2500);
+    if (error) { errEl.textContent = error.message; dbErr('err_save_config', error); return; }
+    toast(t('toast_config_saved', key), 'success', 2500);
   });
 });
 
 /* ================= läufe ================= */
 async function loadRuns() {
-  $('runsWrap').innerHTML = '<p class="muted">Lade…</p>';
+  $('runsWrap').innerHTML = `<p class="muted">${t('loading')}</p>`;
   const { data, error } = await supabase.from('flyer_pipeline_runs').select('*')
     .order('started_at', { ascending: false }).limit(50);
-  if (error) { dbErr('Läufe laden', error); $('runsWrap').innerHTML = '<p class="bad">Fehler beim Laden.</p>'; return; }
-  if (!data || !data.length) { $('runsWrap').innerHTML = '<p class="muted">Noch keine Läufe.</p>'; return; }
+  if (error) { dbErr('err_load_runs', error); $('runsWrap').innerHTML = `<p class="bad">${t('load_fail_short')}</p>`; return; }
+  if (!data || !data.length) { $('runsWrap').innerHTML = `<p class="muted">${t('no_runs')}</p>`; return; }
   const titleById = Object.fromEntries(state.flyers.map(f =>
     [f.id, `${RETAILER_LABEL[f.retailer_id] || f.retailer_id} · ${f.title || '?'}`]));
   const rows = data.map(r => {
     const dur = (r.started_at && r.finished_at)
       ? ((new Date(r.finished_at) - new Date(r.started_at)) / 1000).toFixed(1) + 's' : '–';
     const flyer = r.flyer_id ? (titleById[r.flyer_id] || r.flyer_id.slice(0, 8) + '…') : '–';
-    const stats = r.stats ? `<details class="inline"><summary>Stats</summary><pre>${esc(JSON.stringify(r.stats, null, 2))}</pre></details>` : '<span class="muted">–</span>';
-    const log = r.log ? `<details class="inline runs-log"><summary>Log</summary><pre>${esc(r.log)}</pre></details>` : '<span class="muted">–</span>';
+    const stats = r.stats ? `<details class="inline"><summary>${esc(t('th_stats'))}</summary><pre>${esc(JSON.stringify(r.stats, null, 2))}</pre></details>` : '<span class="muted">–</span>';
+    const log = r.log ? `<details class="inline runs-log"><summary>${esc(t('th_log'))}</summary><pre>${esc(r.log)}</pre></details>` : '<span class="muted">–</span>';
     return `<tr>
       <td class="nowrap small">${fmtTs(r.started_at)}</td>
       <td class="nowrap">${esc(r.kind || '–')}</td>
@@ -1090,11 +1406,12 @@ async function loadRuns() {
     </tr>`;
   }).join('');
   $('runsWrap').innerHTML = `<table class="list">
-    <tr><th>Start</th><th>Art</th><th>Prospekt</th><th>OK</th><th>Dauer</th><th>Stats</th><th>Log</th></tr>
+    <tr><th>${esc(t('th_start'))}</th><th>${esc(t('th_kind'))}</th><th>${esc(t('th_flyer'))}</th><th>${esc(t('th_ok'))}</th><th>${esc(t('th_duration'))}</th><th>${esc(t('th_stats'))}</th><th>${esc(t('th_log'))}</th></tr>
     ${rows}</table>`;
 }
 
 /* ================= boot ================= */
+setLang(LANG, false);
 route();
 </script>
 </body>
