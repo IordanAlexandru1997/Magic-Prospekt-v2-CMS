@@ -226,11 +226,13 @@
   .wk-row{display:flex; gap:12px; align-items:flex-start; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:8px}
   .wk-row.done{opacity:.55}
   .wk-thumb{
-    flex:none; width:140px; min-height:64px; border:1px solid var(--border); border-radius:4px;
-    background:#f2f4f7; display:flex; align-items:center; justify-content:center; overflow:hidden;
-    cursor:zoom-in; font-size:11px; color:var(--muted); text-align:center; padding:2px;
+    flex:none; width:340px; max-width:44vw; min-height:64px; border:1px solid var(--border2); border-radius:6px;
+    background:#fafbfc; display:flex; align-items:center; justify-content:center; overflow:hidden;
+    cursor:zoom-in; font-size:11px; color:var(--muted); text-align:center;
   }
+  .wk-thumb canvas{width:100%; height:auto; display:block; border-radius:6px}
   .wk-thumb img{width:100%; height:auto; display:block}
+  .wk-cropmsg{padding:20px 8px}
   .wk-main{flex:1; min-width:0}
   .lightbox{
     position:fixed; inset:0; background:rgba(20,28,36,.78); z-index:60;
@@ -754,6 +756,16 @@ function isoWeek(d) {
   const w1 = new Date(t2.getFullYear(), 0, 4);
   return 1 + Math.round(((t2 - w1)/86400000 - 3 + ((w1.getDay()+6)%7))/7);
 }
+/* Calendar date (Y/M/D) in Europe/Berlin, independent of the browser's TZ. */
+function berlinToday() {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const g = (k) => +p.find(x => x.type === k).value;
+  return new Date(g('year'), g('month') - 1, g('day'));
+}
+/* App display week = Monday of (today+1) in Europe/Berlin — matches the app's
+   Sunday-preview flip (on Sunday the app already shows next Monday's week). */
+function currentDisplayWeek() { const d = berlinToday(); d.setDate(d.getDate() + 1); return fmtISO(mondayOf(d)); }
+function addWeeksISO(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + 7 * n); return fmtISO(d); }
 function fmtBytes(b) {
   if (b == null) return '–';
   if (b > 1048576) return (b/1048576).toFixed(1) + ' MB';
@@ -1670,27 +1682,38 @@ function getBatchPage(flyer, page) {
   return p;
 }
 
+/* Shared product crop — used by BOTH the Prüfliste and the Wochen-Review so
+   they render identical cropped-product views. Draws the padded product region
+   around an offer's price bbox from a full-page source (a pdf.js <canvas> OR a
+   loaded page <img>) into `dest` (a <canvas>). `scale` maps bbox point-units to
+   source pixels. bbox is {x,y[,w,h]}; the fetcher only stores the price point
+   {x,y}, so with no tile box we anchor a 130x90pt region at the point. ~50%
+   extra context (25% of the box per side, floor 20pt) keeps neighbouring
+   tiles/labels visible on every side, so the reviewer can see whether the price
+   sits outside its box. */
+function cropOfferImage(src, bbox, dest, { scale, maxW = 340 } = {}) {
+  const sW = src.naturalWidth || src.width, sH = src.naturalHeight || src.height;
+  let sx = 0, sy = 0, sw = sW, sh = sH;
+  if (bbox && typeof bbox.x === 'number') {
+    const bw = bbox.w || 130, bh = bbox.h || 90;
+    const padX = Math.max(20, bw * 0.25), padY = Math.max(20, bh * 0.25);
+    sx = Math.max(0, (bbox.x - padX) * scale);
+    sy = Math.max(0, (bbox.y - padY) * scale);
+    sw = Math.min(sW - sx, (bw + 2 * padX) * scale);
+    sh = Math.min(sH - sy, (bh + 2 * padY) * scale);
+  }
+  const k = Math.min(1, maxW / sw);
+  dest.width = Math.round(sw * k);
+  dest.height = Math.round(sh * k);
+  dest.getContext('2d').drawImage(src, sx, sy, sw, sh, 0, 0, dest.width, dest.height);
+}
+
 async function renderCrop(o) {
   const dest = $('bcrop-' + o.id), msg = $('bcropmsg-' + o.id);
   if (!dest) return;
   const rec = await getBatchPage(o.flyer, o.page_number);
   if (!rec) { if (msg) msg.textContent = t('batch_open_page', o.page_number); return; }
-  const s = rec.scale, b = o.bbox;
-  let sx = 0, sy = 0, sw = rec.canvas.width, sh = rec.canvas.height;
-  if (b && typeof b.x === 'number') {
-    // ~50% extra context around the detected box (25% of its size per side,
-    // floor 20pt) so neighbouring tiles/labels are visible on all sides.
-    const bw = b.w || 130, bh = b.h || 90;
-    const padX = Math.max(20, bw * 0.25), padY = Math.max(20, bh * 0.25);
-    sx = Math.max(0, (b.x - padX) * s);
-    sy = Math.max(0, (b.y - padY) * s);
-    sw = Math.min(rec.canvas.width - sx, (bw + 2 * padX) * s);
-    sh = Math.min(rec.canvas.height - sy, (bh + 2 * padY) * s);
-  }
-  const k = Math.min(1, 340 / sw);
-  dest.width = Math.round(sw * k);
-  dest.height = Math.round(sh * k);
-  dest.getContext('2d').drawImage(rec.canvas, sx, sy, sw, sh, 0, 0, dest.width, dest.height);
+  cropOfferImage(rec.canvas, o.bbox, dest, { scale: rec.scale, maxW: 340 });
   if (msg) msg.innerHTML = `<a class="pglink" href="#" data-goto="${escAttr(o.id)}">${esc(t('batch_open_page', o.page_number))}</a>`;
 }
 
@@ -1794,8 +1817,16 @@ const wk = {
   flagged: [],       // davon: auffällige (Anzeige)
   flyerById: {},
   pdfDocs: new Map(), // flyer_id -> Promise<pdfjs doc|null> für Storage-PDFs
+  cropSrc: new Map(), // flyer_id+page -> Promise<{src,scale,url}|null> Crop-Quelle
   loading: false, loadedWeek: null,
 };
+
+/* Fetcher review-JPEGs sind 1000px breit gerendert (fetcher/src/render.ts:
+   TARGET_WIDTH), d.h. bbox-Punkte -> Bild-Pixel = 1000/Seitenbreite_pt. Der
+   Client hat für Fetcher-Flyer kein PDF; die Seitenbreite ist je Retailer-
+   Template stabil (gemessen), mit sicherem Fallback für unbekannte Ketten. */
+const FETCHER_PAGE_W_PT = { aldi_nord: 481.9, aldi_sued: 481.9, lidl: 467.7 };
+const DEFAULT_PAGE_W_PT = 480;
 
 /* „Sauber“/„auffällig“ folgt der Basis-Semantik des Review-Tabs: entscheidend
    sind allein die Anomalie-Flags (Ziffern-Check ODER Konsens/%-Mathe können
@@ -1853,12 +1884,16 @@ function initWochenTab() {
 }
 
 function populateWkWeekSelector() {
-  const weeks = [...new Set(state.flyers.map(f => f.week_start).filter(Boolean))].sort().reverse();
-  if (!wk.week || !weeks.includes(wk.week)) wk.week = weeks[0] || null;
+  // Only the current display week and the one after it — the owner reviews the
+  // week that's about to go live, not far-out previews (e.g. an Aldi Süd KW31
+  // preview that would otherwise hide every chain publishing the immediate
+  // week). Default to the current display week.
+  const cur = currentDisplayWeek();
+  const weeks = [cur, addWeeksISO(cur, 1)];
+  if (!wk.week || !weeks.includes(wk.week)) wk.week = cur;
   $('wkWeekSel').innerHTML = weeks.map(w =>
     `<option value="${escAttr(w)}"${w === wk.week ? ' selected' : ''}>` +
-    `KW ${isoWeek(new Date(w + 'T12:00:00'))} · ab ${fmtDE(w)}</option>`).join('') ||
-    '<option value="">– keine Wochen –</option>';
+    `KW ${isoWeek(new Date(w + 'T12:00:00'))} · ab ${fmtDE(w)}</option>`).join('');
 }
 
 $('wkWeekSel').addEventListener('change', () => { wk.week = $('wkWeekSel').value || null; loadWochen(); });
@@ -1936,7 +1971,7 @@ function wkRowHTML(o) {
   const num = (label, f, val) =>
     `<label class="fld">${label}<input data-f="${f}" type="number" step="0.01" value="${val == null ? '' : escAttr(val)}"></label>`;
   return `<div class="wk-row" data-oid="${escAttr(o.id)}" data-fid="${escAttr(o.flyer_id)}" data-page="${o.page_number ?? ''}">
-    <div class="wk-thumb" data-thumb title="Seitenbild in groß öffnen">Seite ${o.page_number ?? '?'}</div>
+    <div class="wk-thumb" data-thumb title="Volle Seite öffnen"><canvas width="0" height="0"></canvas><span class="wk-cropmsg">Seite ${o.page_number ?? '?'}</span></div>
     <div class="wk-main">
       <div class="offer-head">
         <span class="chip st-${escAttr(o.status)}" data-status-chip>${esc(statusLabel(o.status))}</span>
@@ -1997,7 +2032,9 @@ function renderWochen() {
   hydrateWkThumbs();
 }
 
-/* ---- thumbnails: lazy per sichtbarem Element, dedupliziert über pageImgCache ---- */
+/* ---- Produkt-Crops: lazy je sichtbarem Element, Quelle dedupliziert ----
+   Gleiche Crop-Geometrie wie die Prüfliste (cropOfferImage): der Produkt-
+   ausschnitt um die Preis-bbox mit ~50% Kontext. */
 let wkObserver = null;
 function hydrateWkThumbs() {
   wkObserver?.disconnect();
@@ -2011,17 +2048,32 @@ function hydrateWkThumbs() {
   document.querySelectorAll('#wkWrap .wk-thumb').forEach(el => wkObserver.observe(el));
 }
 
-function wkPageImage(f, page) {
-  if (!f) return Promise.resolve(null);
-  // Storage-PDF vorhanden -> pdf.js-Render (wie im Review-Tab), sonst der
-  // review-pages/-Fallback des Fetchers.
-  if (!f.pdf_path) return pageImageUrl(f.external_id, page);
-  const key = 'pdf|' + f.id + '|' + page;
-  if (!pageImgCache.has(key)) pageImgCache.set(key, renderStoredPdfPageImage(f, page).catch(() => null));
-  return pageImgCache.get(key);
+/* Liefert {src, scale, url}: src = zeichenbare Vollseite (canvas|img), scale =
+   Punkte->Quell-Pixel für cropOfferImage, url = Vollbild fürs Lightbox. Quelle
+   ist der pdf.js-Render (Storage-PDF, wie im Review-Tab) bzw. das review-pages/-
+   Seitenbild des Fetchers. Pro Flyer+Seite gecacht. */
+function wkCropSource(f, page) {
+  if (!f || !page) return Promise.resolve(null);
+  const key = (f.pdf_path ? 'pdf|' : 'img|') + f.id + '|' + page;
+  if (!wk.cropSrc.has(key)) wk.cropSrc.set(key, resolveWkCropSource(f, page).catch(() => null));
+  return wk.cropSrc.get(key);
 }
-
-async function renderStoredPdfPageImage(f, page) {
+async function resolveWkCropSource(f, page) {
+  if (f.pdf_path) {
+    const rec = await renderStoredPdfPageSource(f, page);
+    if (!rec) return null;
+    return { src: rec.canvas, scale: rec.scale, url: rec.canvas.toDataURL('image/jpeg', 0.82) };
+  }
+  const url = await pageImageUrl(f.external_id, page);
+  if (!url) return null;
+  const img = await loadImage(url);
+  const w = FETCHER_PAGE_W_PT[f.retailer_id] || DEFAULT_PAGE_W_PT;
+  return { src: img, scale: (img.naturalWidth || 1000) / w, url };
+}
+function loadImage(url) {
+  return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+}
+async function renderStoredPdfPageSource(f, page) {
   if (!wk.pdfDocs.has(f.id)) {
     wk.pdfDocs.set(f.id, supabase.storage.from('flyers').download(f.pdf_path)
       .then(async ({ data, error }) => {
@@ -2035,18 +2087,23 @@ async function renderStoredPdfPageImage(f, page) {
   if (!doc || !page || page > doc.numPages) return null;
   const p = await doc.getPage(page);
   const base = p.getViewport({ scale: 1 });
-  const vp = p.getViewport({ scale: 1000 / base.width });
+  const scale = 1000 / base.width;
+  const vp = p.getViewport({ scale });
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
   await p.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-  return canvas.toDataURL('image/jpeg', 0.8);
+  return { canvas, scale };
 }
 
 async function loadWkThumb(el) {
   const row = el.closest('.wk-row');
-  const url = await wkPageImage(wk.flyerById[row.dataset.fid], parseInt(row.dataset.page, 10));
-  if (url) el.innerHTML = `<img src="${escAttr(url)}" alt="Seite ${escAttr(row.dataset.page)}" loading="lazy">`;
-  else el.textContent = 'Kein PDF/Seitenbild';
+  const rec = await wkCropSource(wk.flyerById[row.dataset.fid], parseInt(row.dataset.page, 10));
+  const canvas = el.querySelector('canvas');
+  const msg = el.querySelector('.wk-cropmsg');
+  if (!rec || !rec.src || !canvas) { if (msg) msg.textContent = 'Kein PDF/Seitenbild'; return; }
+  const offer = wk.offers.find(o => o.id === row.dataset.oid);
+  cropOfferImage(rec.src, offer && offer.bbox, canvas, { scale: rec.scale, maxW: 340 });
+  if (msg) msg.hidden = true;
 }
 
 $('lightbox').addEventListener('click', () => {
@@ -2058,8 +2115,8 @@ $('wkWrap').addEventListener('click', async (e) => {
   const thumb = e.target.closest('.wk-thumb');
   if (thumb) {
     const row = thumb.closest('.wk-row');
-    const url = await wkPageImage(wk.flyerById[row.dataset.fid], parseInt(row.dataset.page, 10));
-    if (url) { $('lightboxImg').src = url; $('lightbox').hidden = false; }
+    const rec = await wkCropSource(wk.flyerById[row.dataset.fid], parseInt(row.dataset.page, 10));
+    if (rec && rec.url) { $('lightboxImg').src = rec.url; $('lightbox').hidden = false; }
     else toast('Kein Seitenbild für diese Seite verfügbar.', 'info');
     return;
   }
