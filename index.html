@@ -220,6 +220,9 @@
   /* ---------- wochen-review ---------- */
   .wk-flyer-head{display:flex; align-items:center; gap:8px; margin:18px 0 8px}
   .wk-flyer-head h3{margin:0; font-size:13px}
+  .wk-nonfood-divider{display:flex; align-items:center; gap:10px; margin:26px 0 10px; color:var(--muted); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.5px}
+  .wk-nonfood-divider::before,.wk-nonfood-divider::after{content:''; flex:1; border-top:1px solid var(--border)}
+  .chip-nonfood{background:var(--chip-grey-bg); color:var(--muted); font-weight:600}
   .wk-row{display:flex; gap:12px; align-items:flex-start; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:8px}
   .wk-row.done{opacity:.55}
   .wk-thumb{
@@ -481,6 +484,8 @@ const I18N = {
   tab_review:{de:'Review',en:'Review',ro:'Verificare'},
   tab_wochen:{de:'Wochen-Review',en:'Week review',ro:'Revizuire săptămânală'},
   wk_approve_clean:{de:'Alle sauberen genehmigen',en:'Approve all clean',ro:'Aprobă toate cele curate'},
+  wk_nonfood_divider:{de:'Nicht-Lebensmittel / vermutlich nicht übernommen',en:'Non-food / probably not promoted',ro:'Non-alimentare / probabil nepublicate'},
+  wk_nonfood_chip:{de:'wird nicht übernommen',en:'will not be promoted',ro:'nu va fi publicat'},
   tab_config:{de:'Konfiguration',en:'Configuration',ro:'Configurare'},
   tab_runs:{de:'Läufe',en:'Runs',ro:'Rulări'},
   discover_lidl:{de:'Lidl entdecken',en:'Discover Lidl',ro:'Descoperă Lidl'},
@@ -1800,6 +1805,48 @@ const wkIsFlagged = (o) => Array.isArray(o.anomalies) && o.anomalies.length > 0;
 const wkIsClean = (o) => o.status === 'pending' &&
   (!Array.isArray(o.anomalies) || o.anomalies.length === 0);
 
+/* ---- Wichtigkeits-Sortierung (Owner-Wunsch 12.07.) ----
+   Non-Food sinkt ans Ende (der Promote-Kategorisierer übernimmt es ohnehin
+   nicht); unter Lebensmitteln ranken Angebote mit Preis UND Marke vor
+   preis-/markenlosen; Konfidenz ist der letzte Tiebreak. */
+const WK_NONFOOD_BRANDS = [
+  // Lidl-Eigenmarken (Non-Food)
+  'LIVARNO', 'PARKSIDE', 'SILVERCREST', 'CRIVIT', 'ESMARA', 'SANITAS',
+  'ULTIMATE SPEED', 'TRONIC', 'ERNESTO', 'ZOOFARI', 'LUPILU', 'PEPPERTS',
+  'LIVERGY', 'AURIOL', 'FLORABEST', 'POWERFIX', 'MIOMARE', 'MERADISO',
+  'ROCKTRAIL', 'TOPMOVE', 'PLAYTIVE',
+  // Aldi-Eigenmarken (Non-Food)
+  'AMBIANO', 'MEDION', 'FERREX', 'GARDENLINE', 'WORKZONE', 'ACTIVE TOUCH',
+  'CRANE', 'EASY HOME', 'LIVING ART', 'BIKEMATE', 'QUIGG', 'MAGINON',
+  'TEVION', 'HOME CREATION', 'CASALUX', 'LIGHTZONE', 'ENRICO MORDINI',
+  'BLUE MOTION', 'BELAVI',
+];
+const WK_NONFOOD_TITLE_RE = new RegExp([
+  'werkzeug', 'm(ö|oe)bel', 'textil', 'bezug', 'regal', 'batterie', 'akku',
+  'socken', 'str(u|ü|ue)mpf', 'reifen', 'bohr(er|maschine|hammer)', 's(ä|ae)ge',
+  'schrauber', 'leuchte', 'lampe', 'kissen', 'matratze', 'handtuch',
+  'bettw(ä|ae)sche', 't-?shirt', 'jeans', 'hose', 'jacke', 'schuh', 'sneaker',
+  'unterw(ä|ae)sche', 'pyjama', 'spielzeug', 'kopfh(ö|oe)rer', 'fernseher',
+  'monitor', 'smartphone', 'ladeger(ä|ae)t', 'ladekabel', 'steckdose',
+  'teppich', 'gardine', 'vorhang', 'hocker', 'kommode', 'schrank', 'werkbank',
+  'pinsel', 'blumenerde', 'pflanzk(ü|ue)bel', 'gie(ß|ss)kanne', 'drucker',
+  'staubsauger', 'b(ü|ue)gel(eisen|brett)', 'wasserkocher', 'gasgrill',
+  'holzkohlegrill', 'elektrogrill',
+].join('|'), 'i');
+function wkIsNonFood(o) {
+  const hay = (((o.brand || '') + ' ' + (o.title || '')).toUpperCase());
+  if (WK_NONFOOD_BRANDS.some(b => hay.includes(b))) return true;
+  return WK_NONFOOD_TITLE_RE.test(o.title || '');
+}
+function wkScore(o) {
+  const conf = Math.max(0, Math.min(1, Number(o.confidence) || 0)); // Tiebreak
+  if (wkIsNonFood(o)) return -100 + conf;
+  let s = 0;
+  if (o.price_eur != null) s += 20;
+  if ((o.brand || '').trim()) s += 10;
+  return s + conf;
+}
+
 function initWochenTab() {
   populateWkWeekSelector();
   if (wk.week && wk.loadedWeek !== wk.week) loadWochen();
@@ -1896,6 +1943,7 @@ function wkRowHTML(o) {
         <span class="muted small">Seite ${o.page_number ?? '?'}</span>
         ${verifyBadge(o, anoms)}
         ${anoms.map(a => `<span class="chip chip-anom" title="${escAttr(a)}">${esc(flagLabel(a))}</span>`).join('')}
+        ${wkIsNonFood(o) ? `<span class="chip chip-nonfood">${esc(t('wk_nonfood_chip'))}</span>` : ''}
         <span class="spacer"></span>
         <span class="muted small nowrap">Konf. ${o.confidence == null ? '–' : Number(o.confidence).toFixed(2)}</span>
       </div>
@@ -1921,20 +1969,31 @@ function renderWochen() {
     $('wkWrap').innerHTML = '<div class="card"><p class="muted" style="margin:0">Keine auffälligen offenen Angebote in dieser Woche.</p></div>';
     return;
   }
-  const groups = new Map();
-  for (const o of wk.flagged) {
-    if (!groups.has(o.flyer_id)) groups.set(o.flyer_id, []);
-    groups.get(o.flyer_id).push(o);
-  }
   const label = (fid) => {
     const f = wk.flyerById[fid];
     return `${RETAILER_LABEL[f?.retailer_id] || f?.retailer_id || '?'} · ${f?.title || '?'}`;
   };
-  const sorted = [...groups.entries()].sort((a, b) => label(a[0]).localeCompare(label(b[0]), 'de'));
-  $('wkWrap').innerHTML = sorted.map(([fid, offers]) =>
-    `<div class="wk-flyer-head"><h3>${esc(label(fid))}</h3>` +
-    `<span class="chip chip-warn">${offers.length} auffällig</span></div>` +
-    offers.map(wkRowHTML).join('')).join('');
+  // Zwei Abschnitte (Lebensmittel zuerst, Non-Food-Rest unter Trennzeile);
+  // innerhalb jedes Abschnitts weiterhin nach Prospekt gruppiert, innerhalb
+  // eines Prospekts nach Wichtigkeit (wkScore) absteigend.
+  const section = (list) => {
+    const groups = new Map();
+    for (const o of list) {
+      if (!groups.has(o.flyer_id)) groups.set(o.flyer_id, []);
+      groups.get(o.flyer_id).push(o);
+    }
+    const sorted = [...groups.entries()].sort((a, b) => label(a[0]).localeCompare(label(b[0]), 'de'));
+    return sorted.map(([fid, offers]) =>
+      `<div class="wk-flyer-head"><h3>${esc(label(fid))}</h3>` +
+      `<span class="chip chip-warn">${offers.length} auffällig</span></div>` +
+      offers.sort((a, b) => wkScore(b) - wkScore(a)).map(wkRowHTML).join('')).join('');
+  };
+  const food = wk.flagged.filter(o => !wkIsNonFood(o));
+  const nonfood = wk.flagged.filter(wkIsNonFood);
+  $('wkWrap').innerHTML = section(food) +
+    (nonfood.length
+      ? `<div class="wk-nonfood-divider">${esc(t('wk_nonfood_divider'))} (${nonfood.length})</div>` + section(nonfood)
+      : '');
   hydrateWkThumbs();
 }
 
