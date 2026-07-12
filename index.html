@@ -191,6 +191,21 @@
   .offer-actions{display:flex; gap:8px; margin-top:10px}
   #revCounts .chip{margin-left:4px}
 
+  /* ---------- batch / Prüfliste ---------- */
+  .batch-flyer{margin-bottom:8px}
+  .batch-flyer-head{position:sticky; top:52px; z-index:5; background:var(--bg); padding:8px 2px 6px;
+    font-weight:700; display:flex; align-items:center; gap:8px}
+  .batch-flyer-head .muted{font-weight:500}
+  .batch-item{display:flex; gap:12px; align-items:flex-start; background:var(--panel);
+    border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:8px}
+  .batch-item.done{opacity:.5}
+  .batch-crop{flex:none; width:340px}
+  .batch-crop canvas{width:100%; height:auto; border:1px solid var(--border2); border-radius:6px; background:#fafbfc; display:block}
+  .batch-crop .cropmsg{font-size:11px; color:var(--muted); padding:20px 8px; text-align:center}
+  .batch-crop .pglink{font-size:11px; margin-top:4px; display:inline-block}
+  .batch-body{flex:1; min-width:340px}
+  .batch-body .offer-card{border:none; padding:0; margin:0}
+
   /* ---------- config / runs ---------- */
   .cfg-row{margin-bottom:14px}
   .cfg-row textarea{font-family:ui-monospace,Consolas,monospace; font-size:12px}
@@ -198,6 +213,28 @@
   .cfg-err{color:var(--danger); font-size:11.5px; min-height:14px}
   .runs-log pre{max-height:280px; overflow:auto; background:#f7f8fa; border:1px solid var(--border); border-radius:6px; padding:8px}
   details.inline summary{cursor:pointer; color:var(--blue); font-size:12px}
+
+  /* ---------- review page-image fallback (fetcher lane, pdf_path leer) ---------- */
+  #pdfImg{display:block; height:auto}
+
+  /* ---------- wochen-review ---------- */
+  .wk-flyer-head{display:flex; align-items:center; gap:8px; margin:18px 0 8px}
+  .wk-flyer-head h3{margin:0; font-size:13px}
+  .wk-row{display:flex; gap:12px; align-items:flex-start; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:8px}
+  .wk-row.done{opacity:.55}
+  .wk-thumb{
+    flex:none; width:140px; min-height:64px; border:1px solid var(--border); border-radius:4px;
+    background:#f2f4f7; display:flex; align-items:center; justify-content:center; overflow:hidden;
+    cursor:zoom-in; font-size:11px; color:var(--muted); text-align:center; padding:2px;
+  }
+  .wk-thumb img{width:100%; height:auto; display:block}
+  .wk-main{flex:1; min-width:0}
+  .lightbox{
+    position:fixed; inset:0; background:rgba(20,28,36,.78); z-index:60;
+    display:flex; align-items:flex-start; justify-content:center; padding:24px;
+    cursor:zoom-out; overflow:auto;
+  }
+  .lightbox img{max-width:min(1000px,94vw); height:auto; border-radius:6px; background:#fff}
 </style>
 </head>
 <body>
@@ -241,7 +278,9 @@
     <div class="brand">Magic Prospekt <span>· Flyer CMS</span></div>
     <nav class="tabs" id="tabNav">
       <button data-tab="prospekte" class="active" data-i18n="tab_prospekte">Prospekte</button>
+      <button data-tab="batch" data-i18n="tab_batch">Prüfliste</button>
       <button data-tab="review" data-i18n="tab_review">Review</button>
+      <button data-tab="wochen" data-i18n="tab_wochen">Wochen-Review</button>
       <button data-tab="config" data-i18n="tab_config">Konfiguration</button>
       <button data-tab="runs" data-i18n="tab_runs">Läufe</button>
     </nav>
@@ -284,13 +323,14 @@
         <span class="spacer"></span>
         <span id="revCounts"></span>
         <button id="btnApproveClean" class="btn btn-primary" data-i18n="approve_clean">Alle sauberen auf Seite freigeben</button>
-        <button class="btn" disabled data-i18n="promote_phase4" title="Phase 4 — flyer-promote">In App übernehmen (Phase 4)</button>
+        <button id="btnPromote" class="btn" data-i18n="promote_phase4" title="flyer-promote">In App übernehmen (Phase 4)</button>
       </div>
       <div class="review-body">
         <div class="pdf-pane card">
           <div class="pdf-wrap" id="pdfWrap">
             <div id="pdfDrag">
               <canvas id="pdfCanvas" width="0" height="0"></canvas>
+              <img id="pdfImg" alt="" hidden>
               <div id="pdfOverlay"></div>
             </div>
             <div class="pan-hint" id="panHint" data-i18n="pan_hint" hidden>Bild ziehen zum Verschieben</div>
@@ -299,6 +339,35 @@
         </div>
         <div id="offerPane" class="offer-pane"><p class="muted" data-i18n="choose_flyer">Prospekt wählen.</p></div>
       </div>
+    </section>
+
+    <!-- ------ Prüfliste (batch review of all flagged offers) ------ -->
+    <section id="tab-batch" hidden>
+      <div class="toolbar">
+        <span id="batchCount" class="chip"></span>
+        <button id="batchReload" class="btn"><span>&#10227;</span> <span data-i18n="refresh">Aktualisieren</span></button>
+        <button id="batchSpotCheck" class="btn" data-i18n="batch_spotcheck">Stichprobe 50</button>
+        <button id="batchDiscarded" class="btn" data-i18n="batch_discarded">Verworfene</button>
+        <button id="batchApproveAll" class="btn btn-approve" data-i18n="batch_approve_all">Alle als korrekt freigeben</button>
+        <button id="batchPromoteWeek" class="btn btn-primary" data-i18n="promote_week">Woche in App übernehmen</button>
+        <span class="spacer"></span>
+        <span class="muted small" data-i18n="batch_hint">Nur markierte Angebote aller Prospekte — Preis prüfen, korrigieren, freigeben oder ablehnen.</span>
+      </div>
+      <div id="batchWrap"><p class="muted" data-i18n="loading">Lade…</p></div>
+    </section>
+
+    <!-- ------ Wochen-Review ------ -->
+    <section id="tab-wochen" hidden>
+      <div class="toolbar">
+        <label class="small muted" for="wkWeekSel" data-i18n="th_week">Woche</label>
+        <select id="wkWeekSel" style="width:auto; max-width:280px"></select>
+        <button id="wkRefresh" class="btn" data-i18n-title="refresh" title="Aktualisieren">&#10227;</button>
+        <span class="spacer"></span>
+        <span id="wkCounts"></span>
+        <button id="wkApproveClean" class="btn btn-primary" data-i18n="wk_approve_clean">Alle sauberen genehmigen</button>
+      </div>
+      <div id="wkStatsWrap"></div>
+      <div id="wkWrap"><p class="muted" data-i18n="loading">Lade…</p></div>
     </section>
 
     <!-- ------ Konfiguration ------ -->
@@ -368,6 +437,9 @@
   </div>
 </div>
 
+<!-- ============ LIGHTBOX (Wochen-Review Seitenbild) ============ -->
+<div id="lightbox" class="lightbox" hidden><img id="lightboxImg" alt="Seitenbild"></div>
+
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4/legacy/build/pdf.min.mjs';
@@ -388,7 +460,27 @@ const I18N = {
   not_admin_title:{de:'Kein Admin-Zugang',en:'No admin access',ro:'Fără acces de administrator'},
   not_admin_body:{de:'Dieses Konto ist nicht als Admin freigeschaltet (flyer_admins).',en:'This account is not enabled as an admin (flyer_admins).',ro:'Acest cont nu are drepturi de administrator (flyer_admins).'},
   tab_prospekte:{de:'Prospekte',en:'Flyers',ro:'Prospecte'},
+  tab_batch:{de:'Prüfliste',en:'Review queue',ro:'Listă de verificare'},
+  batch_hint:{de:'Nur markierte Angebote aller Prospekte — Preis prüfen, korrigieren, freigeben oder ablehnen.',en:'Only flagged offers from every flyer — check the price, fix, approve or reject.',ro:'Doar ofertele semnalate din toate prospectele — verifică prețul, corectează, aprobă sau respinge.'},
+  batch_empty:{de:'Nichts zu prüfen — alle Angebote sind freigegeben oder abgelehnt. 🎉',en:'Nothing to review — every offer is approved or rejected. 🎉',ro:'Nimic de verificat — toate ofertele sunt aprobate sau respinse. 🎉'},
+  batch_count:{de:'{0} zu prüfen',en:'{0} to review',ro:'{0} de verificat'},
+  batch_approve_all:{de:'Alle als korrekt freigeben',en:'Approve all as correct',ro:'Aprobă toate ca fiind corecte'},
+  batch_confirm_all:{de:'{0} verbleibende Angebote als korrekt freigeben?',en:'Approve all {0} remaining offers as correct?',ro:'Aprobi toate cele {0} oferte rămase ca fiind corecte?'},
+  batch_open_page:{de:'Seite {0} im Prospekt',en:'Page {0} in flyer',ro:'Pagina {0} în prospect'},
+  batch_spotcheck:{de:'Stichprobe 50',en:'Spot check 50',ro:'Eșantion 50'},
+  batch_discarded:{de:'Verworfene',en:'Discarded',ro:'Respinse'},
+  batch_disc_count:{de:'{0} automatisch verworfen — nach Belieben korrigieren & freigeben',en:'{0} auto-discarded — fix & approve any you want',ro:'{0} respinse automat — corectează și aprobă ce dorești'},
+  batch_disc_empty:{de:'Keine verworfenen Angebote. 🎉',en:'No discarded offers. 🎉',ro:'Nicio ofertă respinsă. 🎉'},
+  promote_week:{de:'Woche in App übernehmen',en:'Push week to app',ro:'Publică săptămâna în aplicație'},
+  promote_week_confirm:{de:'Alle freigegebenen Angebote der Woche ab {0} in die App übernehmen? (Beste je Kategorie; erneut ausführen ist gefahrlos.)',en:'Push all approved offers for the week starting {0} into the app? (Best per category; safe to re-run.)',ro:'Publici toate ofertele aprobate pentru săptămâna din {0}? (Cea mai bună pe categorie; se poate repeta fără risc.)'},
+  promote_ok:{de:'{0} Angebote in die App übernommen (beste je Kategorie).',en:'{0} offers pushed to the app (best per category).',ro:'{0} oferte publicate în aplicație (cea mai bună pe categorie).'},
+  promote_fail:{de:'Übernahme fehlgeschlagen: {0}',en:'Promote failed: {0}',ro:'Publicarea a eșuat: {0}'},
+  failed_runs_warn:{de:'⚠ {0} fehlgeschlagene Pipeline-Läufe in den letzten 7 Tagen (zuletzt {1}) — siehe Tab „Läufe".',en:'⚠ {0} failed pipeline runs in the last 7 days (latest {1}) — see the Runs tab.',ro:'⚠ {0} rulări eșuate în ultimele 7 zile (ultima {1}) — vezi tabul Rulări.'},
+  batch_spot_count:{de:'Stichprobe: {0} veröffentlichte Angebote — Preis prüfen, ✗ zieht zurück',en:'Spot check: {0} published offers — verify the price, ✗ withdraws',ro:'Eșantion: {0} oferte publicate — verifică prețul, ✗ retrage'},
+  batch_spot_empty:{de:'Keine veröffentlichten Vision-Angebote gefunden.',en:'No published vision offers found.',ro:'Nu s-au găsit oferte publicate.'},
   tab_review:{de:'Review',en:'Review',ro:'Verificare'},
+  tab_wochen:{de:'Wochen-Review',en:'Week review',ro:'Revizuire săptămânală'},
+  wk_approve_clean:{de:'Alle sauberen genehmigen',en:'Approve all clean',ro:'Aprobă toate cele curate'},
   tab_config:{de:'Konfiguration',en:'Configuration',ro:'Configurare'},
   tab_runs:{de:'Läufe',en:'Runs',ro:'Rulări'},
   discover_lidl:{de:'Lidl entdecken',en:'Discover Lidl',ro:'Descoperă Lidl'},
@@ -443,6 +535,11 @@ const I18N = {
   f_requires_app:{de:'Nur mit App',en:'App only',ro:'Doar cu aplicația'},
   f_reviewer_note:{de:'Reviewer-Notiz',en:'Reviewer note',ro:'Notă verificator'},
   lbl_digits:{de:'Ziffern',en:'Digits',ro:'Cifre'},
+  lbl_verified:{de:'geprüft',en:'verified',ro:'verificat'},
+  lbl_check:{de:'prüfen',en:'check',ro:'verifică'},
+  vb_digits_title:{de:'Preis-Ziffern im Text-Layer des PDFs bestätigt',en:'Price digits confirmed in the PDF text layer',ro:'Cifrele prețului confirmate în stratul de text al PDF-ului'},
+  vb_verified_title:{de:'Ohne Anomalie geprüft (Konsens / %-Mathe) — Details in der Notiz',en:'Clean via consensus / %-math — see note',ro:'Curat prin consens / %-matematică — vezi nota'},
+  vb_unverified_title:{de:'Nicht deterministisch bestätigt — bitte prüfen',en:'Not deterministically confirmed — please check',ro:'Neconfirmat determinist — verifică'},
   lbl_conf:{de:'Konf.',en:'Conf.',ro:'Încr.'},
   chip_edited:{de:'bearbeitet',en:'edited',ro:'editat'},
   rawtext:{de:'Rohtext',en:'Raw text',ro:'Text brut'},
@@ -494,6 +591,8 @@ const I18N = {
   pdf_render_fail:{de:'PDF konnte nicht gerendert werden.',en:'Could not render PDF.',ro:'PDF-ul nu a putut fi redat.'},
   pdf_render_err:{de:'PDF-Render-Fehler: {0}',en:'PDF render error: {0}',ro:'Eroare la redarea PDF: {0}'},
   pdf_none:{de:'Kein PDF in Storage (pdf_path leer).',en:'No PDF in storage (pdf_path empty).',ro:'Niciun PDF în stocare (pdf_path gol).'},
+  pdf_img_fallback:{de:'Seitenbild aus review-pages/ (lokaler Fetcher-Render, ohne Kachel-Chips).',en:'Page image from review-pages/ (local fetcher render, no tile chips).',ro:'Imaginea paginii din review-pages/ (redare locală a fetcher-ului, fără marcaje).'},
+  pdf_none_img:{de:'Kein PDF/Seitenbild für diese Seite.',en:'No PDF/page image for this page.',ro:'Niciun PDF sau imagine de pagină pentru această pagină.'},
   pdf_page_missing:{de:'Seite {0} ist nicht im PDF (nur {1} Seiten).',en:'Page {0} is not in the PDF (only {1} pages).',ro:'Pagina {0} nu există în PDF (doar {1} pagini).'},
   pdf_page_render_fail:{de:'PDF-Seite konnte nicht gerendert werden: {0}',en:'Could not render PDF page: {0}',ro:'Pagina PDF nu a putut fi redată: {0}'},
   render_err_short:{de:'Render-Fehler.',en:'Render error.',ro:'Eroare de redare.'},
@@ -708,6 +807,18 @@ async function route() {
   $('appView').hidden = false;
   $('userEmail').textContent = session.user.email || '';
   await loadDashboard(true);
+  checkFailedRuns();
+}
+
+/* Failure alert: on login, surface pipeline runs that failed in the last
+ * 7 days as a warning toast (full detail lives in the Läufe tab). */
+async function checkFailedRuns() {
+  const since = new Date(Date.now() - 7 * 864e5).toISOString();
+  const { data, error } = await supabase.from('flyer_pipeline_runs')
+    .select('kind,started_at').eq('ok', false).gte('started_at', since)
+    .order('started_at', { ascending: false }).limit(20);
+  if (error || !data || !data.length) return;
+  toast(t('failed_runs_warn', data.length, fmtTs(data[0].started_at)), 'error', 10000);
 }
 
 supabase.auth.onAuthStateChange((event, session) => {
@@ -741,10 +852,12 @@ $('tabNav').addEventListener('click', (e) => {
 function setTab(name) {
   state.tab = name;
   document.querySelectorAll('#tabNav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  ['prospekte','review','config','runs'].forEach(t2 => { $('tab-' + t2).hidden = (t2 !== name); });
+  ['prospekte','batch','review','wochen','config','runs'].forEach(t2 => { $('tab-' + t2).hidden = (t2 !== name); });
   if (name === 'config') loadConfig();
   if (name === 'runs') loadRuns();
   if (name === 'review') initReviewTab();
+  if (name === 'batch') loadBatch();
+  if (name === 'wochen') initWochenTab();
 }
 
 /* ================= dashboard ================= */
@@ -1020,16 +1133,20 @@ $('revNextFlag').onclick = () => {
   renderReviewPage();
 };
 
-async function loadReviewFlyer(flyerId, keepPage) {
-  if (rev.loading) return;
-  rev.loading = true;
+async function loadReviewFlyer(flyerId, keepPage, gotoPage) {
+  // Serialize instead of dropping re-entrant calls: the batch-view "open page"
+  // jump used to be swallowed by initReviewTab()'s auto-load of the first
+  // flyer, leaving the wrong PDF + a page clamp ("Render error", offers on
+  // the wrong page). Now every call waits its turn and the last one wins.
+  while (rev.loading) await rev.loading;
+  let release; rev.loading = new Promise(r => { release = r; });
   try {
     const flyer = state.flyers.find(f => f.id === flyerId);
     if (!flyer) { toast(t('toast_not_found_refresh'), 'error'); return; }
     const samePdf = rev.pdfFlyerId === flyerId && rev.pdfDoc;
     rev.flyerId = flyerId;
     $('revFlyerSel').value = flyerId;
-    if (!keepPage) rev.page = 1;
+    if (!keepPage) rev.page = gotoPage || 1;
     $('offerPane').innerHTML = `<p class="muted">${t('loading_offers')}</p>`;
 
     const { data, error } = await supabase.from('flyer_offers_staged').select('*')
@@ -1061,12 +1178,16 @@ async function loadReviewFlyer(flyerId, keepPage) {
           }
         }
       } else {
-        $('pdfMsg').textContent = t('pdf_none');
+        // Fetcher-lane Prospekt: das PDF bleibt lokal (pdf_path leer).
+        // renderPdfPage fällt auf die vom Fetcher hochgeladenen Seitenbilder
+        // (review-pages/{external_id}/{seite}.jpg) zurück.
+        $('pdfMsg').textContent = '';
       }
     }
     renderReviewPage();
   } finally {
-    rev.loading = false;
+    rev.loading = null;
+    release();
   }
 }
 
@@ -1074,9 +1195,50 @@ function clearPdfPane(msg) {
   const c = $('pdfCanvas');
   c.width = 0; c.height = 0; c.style.width = '0px'; c.style.height = '0px';
   $('pdfOverlay').innerHTML = '';
+  const img = $('pdfImg');
+  img.hidden = true; img.removeAttribute('src');
   $('panHint').hidden = true;
   resetPan();
   if (msg !== undefined) $('pdfMsg').textContent = msg;
+}
+
+/* ---- page-image fallback (fetcher flyers, pdf_path leer) ----
+   Der lokale Fetcher rendert jede OCR-Seite als JPEG in den flyers-Bucket:
+   review-pages/{external_id}/{seite}.jpg. Object-URLs werden pro Session
+   gecacht (kleine JPEGs, Review-Sessions sind kurz). */
+const pageImgCache = new Map(); // 'ext|page' -> Promise<objectURL|null>
+function pageImageUrl(externalId, page) {
+  if (!externalId || !page) return Promise.resolve(null);
+  const key = externalId + '|' + page;
+  if (!pageImgCache.has(key)) {
+    pageImgCache.set(key, supabase.storage.from('flyers')
+      .download('review-pages/' + externalId + '/' + page + '.jpg')
+      .then(({ data, error }) => error ? null : URL.createObjectURL(data))
+      .catch(() => null));
+  }
+  return pageImgCache.get(key);
+}
+
+async function renderPageImageFallback(token) {
+  clearPdfPane(undefined);
+  if (!rev.flyerId) return;
+  const flyer = state.flyers.find(f => f.id === rev.flyerId);
+  const url = await pageImageUrl(flyer?.external_id, rev.page);
+  if (token !== rev.renderToken) return;
+  if (url) {
+    const img = $('pdfImg');
+    const wrap = $('pdfWrap');
+    img.style.width = Math.max(320, wrap.clientWidth || 680) + 'px';
+    img.onload = () => {
+      if (token !== rev.renderToken) return;
+      // Pan-Hinweis wie beim PDF-Render: nur wenn das Bild höher als der Ausschnitt ist.
+      $('panHint').hidden = !(img.clientHeight > wrap.clientHeight + 4);
+    };
+    img.src = url; img.hidden = false;
+    $('pdfMsg').textContent = t('pdf_img_fallback');
+  } else {
+    $('pdfMsg').textContent = t('pdf_none_img');
+  }
 }
 
 function pageOffers() {
@@ -1111,9 +1273,11 @@ function resetPan() { rev.tx = 0; rev.ty = 0; applyPan(); }
 function applyPan() { $('pdfDrag').style.transform = `translate(${Math.round(rev.tx)}px, ${Math.round(rev.ty)}px)`; }
 function clampPan() {
   const wrap = $('pdfWrap');
-  const c = $('pdfCanvas');
+  const c = $('pdfCanvas'), img = $('pdfImg');
   const wrapH = wrap.clientHeight, wrapW = wrap.clientWidth;
-  const cw = c.clientWidth || 0, ch = c.clientHeight || 0;
+  // Sichtbarer Inhalt ist entweder der PDF-Canvas oder das Fallback-Seitenbild.
+  const cw = Math.max(c.clientWidth || 0, img.hidden ? 0 : (img.clientWidth || 0));
+  const ch = Math.max(c.clientHeight || 0, img.hidden ? 0 : (img.clientHeight || 0));
   const minX = Math.min(0, wrapW - cw);
   const minY = Math.min(0, wrapH - ch);
   rev.tx = Math.min(0, Math.max(minX, rev.tx));
@@ -1123,7 +1287,7 @@ function clampPan() {
   const wrap = $('pdfWrap');
   let dragging = false, sx = 0, sy = 0, moved = 0;
   wrap.addEventListener('pointerdown', (e) => {
-    if (!rev.pdfDoc) return;
+    if (!rev.pdfDoc && $('pdfImg').hidden) return;
     dragging = true; moved = 0; sx = e.clientX; sy = e.clientY;
     wrap.classList.add('grabbing');
     try { wrap.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1146,7 +1310,7 @@ function clampPan() {
   wrap.addEventListener('pointerup', endDrag);
   wrap.addEventListener('pointercancel', endDrag);
   wrap.addEventListener('wheel', (e) => {
-    if (!rev.pdfDoc) return;
+    if (!rev.pdfDoc && $('pdfImg').hidden) return;
     e.preventDefault();
     rev.ty -= e.deltaY; rev.tx -= e.deltaX;
     clampPan(); applyPan();
@@ -1155,7 +1319,8 @@ function clampPan() {
 
 async function renderPdfPage() {
   const token = ++rev.renderToken;
-  if (!rev.pdfDoc) { clearPdfPane(undefined); return; }
+  if (!rev.pdfDoc) { await renderPageImageFallback(token); return; }
+  $('pdfImg').hidden = true;
   if (rev.page > rev.pdfDoc.numPages) {
     clearPdfPane(t('pdf_page_missing', rev.page, rev.pdfDoc.numPages));
     return;
@@ -1219,6 +1384,22 @@ $('pdfOverlay').addEventListener('click', (e) => {
 /* ---- offer cards ---- */
 const NUM_FIELDS = ['price_eur', 'old_price_eur', 'discount_pct', 'grundpreis_eur'];
 
+// Verification badge: green when the card is publishable, red only when a real
+// anomaly remains. A clean card may have been verified by the text-layer digit
+// check (digit_check_passed) OR by 2-model consensus / %-math (raster pages
+// like EDEKA have no text layer, so digit_check_passed is false yet the card
+// is still green). The reviewer_note explains which path — shown on hover.
+function verifyBadge(o, anoms) {
+  const green = !Array.isArray(anoms) || anoms.length === 0;
+  if (green) {
+    // One green badge for both proof paths. "✗ Digits" used to show on every
+    // raster (EDEKA) card even when consensus-verified — alarming and wrong.
+    const title = o.digit_check_passed ? t('vb_digits_title') : (o.reviewer_note || t('vb_verified_title'));
+    return `<span class="ok" title="${escAttr(title)}">✓ ${esc(t('lbl_verified'))}</span>`;
+  }
+  return `<span class="bad" title="${escAttr(t('vb_unverified_title'))}">⚠ ${esc(t('lbl_check'))}</span>`;
+}
+
 function offerCardHTML(o, idx) {
   const conf = o.confidence == null ? '–' : Number(o.confidence).toFixed(2);
   const anoms = Array.isArray(o.anomalies) ? o.anomalies : [];
@@ -1233,7 +1414,7 @@ function offerCardHTML(o, idx) {
       <span class="chip st-${escAttr(o.status)}">${esc(statusLabel(o.status))}</span>
       ${o.edited ? `<span class="chip chip-edited">${esc(t('chip_edited'))}</span>` : ''}
       <span class="muted small">${esc(t('lbl_conf'))} ${esc(conf)}</span>
-      <span class="${o.digit_check_passed ? 'ok' : 'bad'}" title="digit check">${o.digit_check_passed ? '✓' : '✗'} ${esc(t('lbl_digits'))}</span>
+      ${verifyBadge(o, anoms)}
       ${anoms.map(a => `<span class="chip chip-anom" title="${escAttr(a)}">${esc(flagLabel(a))}</span>`).join('')}
       <span class="spacer"></span>
       <span class="muted small nowrap">${fmtDE(o.valid_from)} – ${fmtDE(o.valid_to)}</span>
@@ -1330,10 +1511,21 @@ $('offerPane').addEventListener('click', async (e) => {
   }
 });
 
+$('btnPromote').onclick = () => withBusy($('btnPromote'), async () => {
+  if (!rev.flyerId) { toast(t('choose_flyer'), 'info'); return; }
+  const { data, error } = await supabase.functions.invoke('flyer-promote', { body: { flyer_id: rev.flyerId } });
+  if (error || !data || !data.ok) { toast(t('promote_fail', (error && error.message) || (data && data.error) || '?'), 'error'); return; }
+  toast(t('promote_ok', data.promoted), 'success');
+  await loadReviewFlyer(rev.flyerId, true);
+});
+
 $('btnApproveClean').onclick = () => withBusy($('btnApproveClean'), async () => {
+  // "Clean" = no anomaly flags. A green card is publishable regardless of HOW
+  // it was verified — text-layer digit check (digit_check_passed) OR 2-model
+  // consensus OR %-math. Requiring digit_check_passed here wrongly excluded
+  // every raster/consensus-verified EDEKA offer (they have no text layer).
   const clean = pageOffers().filter(o =>
     o.status === 'pending' &&
-    o.digit_check_passed &&
     (!Array.isArray(o.anomalies) || o.anomalies.length === 0));
   if (!clean.length) { toast(t('toast_no_clean'), 'info'); return; }
   const ids = clean.map(o => o.id);
@@ -1343,6 +1535,537 @@ $('btnApproveClean').onclick = () => withBusy($('btnApproveClean'), async () => 
   toast(t('toast_bulk_ok', clean.length), 'success');
   renderOfferPane();
   renderCounts();
+});
+
+/* ================= Prüfliste (batch review) ================= */
+const batch = { items: [], byId: new Map(), pdfCache: new Map(), pageCache: new Map(), mode: 'pending' };
+
+const SPOT_SEL = '*, flyer:flyer_registry(id,retailer_id,title,pdf_path,viewer_url,week_start)';
+const byFlyerPage = (a, b) =>
+  a.flyer_id < b.flyer_id ? -1 : a.flyer_id > b.flyer_id ? 1 :
+  (a.page_number - b.page_number) || ((a.tile_index || 0) - (b.tile_index || 0));
+
+async function loadBatch() {
+  $('batchWrap').innerHTML = `<p class="muted">${t('loading')}</p>`;
+  batch.byId.clear();
+
+  if (batch.mode === 'spot') {
+    // The sample is pinned in sessionStorage: switching tabs (e.g. following
+    // a "page X in flyer" link) or F5 returns to the SAME 50. Only the
+    // refresh button re-rolls.
+    const saved = batch.reroll ? null : JSON.parse(sessionStorage.getItem('cms_spot_ids') || 'null');
+    batch.reroll = false;
+    let items;
+    if (saved && saved.length) {
+      const { data, error } = await supabase.from('flyer_offers_staged').select(SPOT_SEL).in('id', saved);
+      if (error) { dbErr('err_load_offers', error); $('batchWrap').innerHTML = `<p class="bad">${t('load_fail_short')}</p>`; return; }
+      items = data || [];
+    } else {
+      const { data, error } = await supabase.from('flyer_offers_staged').select(SPOT_SEL)
+        .eq('lane', 'vision').in('status', ['auto_approved', 'approved', 'promoted']).limit(2000);
+      if (error) { dbErr('err_load_offers', error); $('batchWrap').innerHTML = `<p class="bad">${t('load_fail_short')}</p>`; return; }
+      const pool = data || [];
+      // Mix: up to 15 of the LOWEST-confidence published offers (the ones
+      // most worth eyeballing), the majority pure random.
+      const low = pool.filter(o => (o.confidence ?? 1) < 0.95)
+        .sort((a, b) => (a.confidence ?? 1) - (b.confidence ?? 1)).slice(0, 15);
+      const lowIds = new Set(low.map(o => o.id));
+      const rest = pool.filter(o => !lowIds.has(o.id));
+      for (let i = rest.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [rest[i], rest[j]] = [rest[j], rest[i]];
+      }
+      items = [...low, ...rest.slice(0, Math.max(0, 50 - low.length))];
+      sessionStorage.setItem('cms_spot_ids', JSON.stringify(items.map(o => o.id)));
+    }
+    batch.items = items.sort(byFlyerPage);
+    renderBatch();
+    return;
+  }
+
+  let q = supabase.from('flyer_offers_staged').select(SPOT_SEL).eq('lane', 'vision');
+  q = batch.mode === 'rejected'
+    ? q.eq('status', 'rejected').order('flyer_id').order('page_number').order('tile_index').limit(1000)
+    : q.eq('status', 'pending').order('flyer_id').order('page_number').order('tile_index');
+  const { data, error } = await q;
+  if (error) { dbErr('err_load_offers', error); $('batchWrap').innerHTML = `<p class="bad">${t('load_fail_short')}</p>`; return; }
+  batch.items = data || [];
+  renderBatch();
+}
+
+function renderBatch() {
+  const mode = batch.mode;
+  const items = mode === 'spot' ? batch.items
+    : batch.items.filter(o => o.status === (mode === 'rejected' ? 'rejected' : 'pending'));
+  $('batchCount').textContent =
+    mode === 'spot' ? t('batch_spot_count', items.length) :
+    mode === 'rejected' ? t('batch_disc_count', items.length) :
+    t('batch_count', items.length);
+  $('batchSpotCheck').classList.toggle('btn-approve', mode === 'spot');
+  $('batchDiscarded').classList.toggle('btn-approve', mode === 'rejected');
+  // Mass-approve only makes sense for the (normally empty) pending queue —
+  // in the discarded view it would publish non-food junk in one click.
+  $('batchApproveAll').style.display = mode === 'pending' ? '' : 'none';
+  if (!items.length) {
+    const msg = mode === 'spot' ? t('batch_spot_empty') : mode === 'rejected' ? t('batch_disc_empty') : t('batch_empty');
+    $('batchWrap').innerHTML = `<p class="muted card">${msg}</p>`;
+    return;
+  }
+  const groups = new Map();
+  for (const o of items) {
+    if (!groups.has(o.flyer_id)) groups.set(o.flyer_id, { flyer: o.flyer, list: [] });
+    groups.get(o.flyer_id).list.push(o);
+    batch.byId.set(o.id, o);
+  }
+  let html = '';
+  for (const { flyer, list } of groups.values()) {
+    const label = flyer ? `${esc(RETAILER_LABEL[flyer.retailer_id] || flyer.retailer_id)} · ${esc(flyer.title || '')}` : '?';
+    const viewer = flyer && flyer.viewer_url ? ` <a href="${esc(flyer.viewer_url)}" target="_blank" rel="noopener">🔗</a>` : '';
+    html += `<div class="batch-flyer"><div class="batch-flyer-head">${label}${viewer} <span class="muted small">(${list.length})</span></div>`;
+    html += list.map(o => `<div class="batch-item" id="bitem-${escAttr(o.id)}">
+      <div class="batch-crop">
+        <canvas id="bcrop-${escAttr(o.id)}" width="0" height="0"></canvas>
+        <div class="cropmsg" id="bcropmsg-${escAttr(o.id)}">…</div>
+      </div>
+      <div class="batch-body">${offerCardHTML(o, o.page_number)}</div>
+    </div>`).join('');
+    html += `</div>`;
+  }
+  $('batchWrap').innerHTML = html;
+  for (const o of items) renderCrop(o).catch(() => {});
+}
+
+function getBatchPdf(flyer) {
+  if (!flyer || !flyer.pdf_path) return Promise.resolve(null);
+  if (batch.pdfCache.has(flyer.id)) return batch.pdfCache.get(flyer.id);
+  const p = (async () => {
+    const dl = await supabase.storage.from('flyers').download(flyer.pdf_path);
+    if (dl.error) return null;
+    return await pdfjsLib.getDocument({ data: new Uint8Array(await dl.data.arrayBuffer()) }).promise;
+  })();
+  batch.pdfCache.set(flyer.id, p);
+  return p;
+}
+
+function getBatchPage(flyer, page) {
+  const key = (flyer ? flyer.id : '?') + ':' + page;
+  if (batch.pageCache.has(key)) return batch.pageCache.get(key);
+  const p = (async () => {
+    const doc = await getBatchPdf(flyer);
+    if (!doc || page > doc.numPages) return null;
+    const pg = await doc.getPage(page);
+    const scale = 1.5;
+    const vp = pg.getViewport({ scale });
+    const cv = document.createElement('canvas');
+    cv.width = vp.width; cv.height = vp.height;
+    await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    return { canvas: cv, scale };
+  })();
+  batch.pageCache.set(key, p);
+  return p;
+}
+
+async function renderCrop(o) {
+  const dest = $('bcrop-' + o.id), msg = $('bcropmsg-' + o.id);
+  if (!dest) return;
+  const rec = await getBatchPage(o.flyer, o.page_number);
+  if (!rec) { if (msg) msg.textContent = t('batch_open_page', o.page_number); return; }
+  const s = rec.scale, b = o.bbox;
+  let sx = 0, sy = 0, sw = rec.canvas.width, sh = rec.canvas.height;
+  if (b && typeof b.x === 'number') {
+    // ~50% extra context around the detected box (25% of its size per side,
+    // floor 20pt) so neighbouring tiles/labels are visible on all sides.
+    const bw = b.w || 130, bh = b.h || 90;
+    const padX = Math.max(20, bw * 0.25), padY = Math.max(20, bh * 0.25);
+    sx = Math.max(0, (b.x - padX) * s);
+    sy = Math.max(0, (b.y - padY) * s);
+    sw = Math.min(rec.canvas.width - sx, (bw + 2 * padX) * s);
+    sh = Math.min(rec.canvas.height - sy, (bh + 2 * padY) * s);
+  }
+  const k = Math.min(1, 340 / sw);
+  dest.width = Math.round(sw * k);
+  dest.height = Math.round(sh * k);
+  dest.getContext('2d').drawImage(rec.canvas, sx, sy, sw, sh, 0, 0, dest.width, dest.height);
+  if (msg) msg.innerHTML = `<a class="pglink" href="#" data-goto="${escAttr(o.id)}">${esc(t('batch_open_page', o.page_number))}</a>`;
+}
+
+$('batchWrap').addEventListener('click', async (e) => {
+  const goto = e.target.closest('[data-goto]');
+  if (goto) {
+    e.preventDefault();
+    const o = batch.byId.get(goto.dataset.goto);
+    if (o) {
+      // Claim the target BEFORE switching tabs so initReviewTab() doesn't
+      // auto-load the first flyer in the list; then load with the page baked
+      // in (it gets clamped against the real maxPage inside the loader).
+      rev.flyerId = o.flyer_id;
+      setTab('review');
+      await loadReviewFlyer(o.flyer_id, false, o.page_number);
+    }
+    return;
+  }
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const card = btn.closest('.offer-card');
+  const oid = card.dataset.oid;
+  const o = batch.byId.get(oid);
+  if (!o) return;
+
+  if (btn.dataset.act === 'save') {
+    const payload = { edited: true };
+    let invalid = null;
+    card.querySelectorAll('[data-f]').forEach(el => {
+      const f = el.dataset.f;
+      if (el.type === 'checkbox') { payload[f] = el.checked; return; }
+      const v = el.value.trim();
+      if (NUM_FIELDS.includes(f)) { if (v === '') payload[f] = null; else { const n = Number(v); if (Number.isNaN(n)) invalid = f; else payload[f] = n; } }
+      else payload[f] = v === '' ? null : v;
+    });
+    if (invalid) { toast(t('toast_invalid_num', invalid), 'error'); return; }
+    await withBusy(btn, async () => {
+      const { error } = await supabase.from('flyer_offers_staged').update(payload).eq('id', oid);
+      if (error) { dbErr('err_save', error); return; }
+      Object.assign(o, payload);
+      toast(t('toast_saved'), 'success', 2000);
+    });
+  } else if (btn.dataset.act === 'approve' || btn.dataset.act === 'reject') {
+    const status = btn.dataset.act === 'approve' ? 'approved' : 'rejected';
+    await withBusy(btn, async () => {
+      const { error } = await supabase.from('flyer_offers_staged').update({ status }).eq('id', oid);
+      if (error) { dbErr(status === 'approved' ? 'err_approve' : 'err_reject', error); return; }
+      o.status = status;
+      const item = $('bitem-' + oid);
+      if (item) { item.classList.add('done'); setTimeout(() => item.remove(), 250); }
+      if (batch.mode === 'pending')
+        $('batchCount').textContent = t('batch_count', batch.items.filter(x => x.status === 'pending').length);
+      else if (batch.mode === 'rejected')
+        $('batchCount').textContent = t('batch_disc_count', batch.items.filter(x => x.status === 'rejected').length);
+    });
+  }
+});
+
+$('batchReload').onclick = () => withBusy($('batchReload'), () => {
+  batch.pdfCache.clear(); batch.pageCache.clear();
+  batch.reroll = true; // in spot mode: explicit refresh = new random 50
+  return loadBatch();
+});
+$('batchSpotCheck').onclick = () => withBusy($('batchSpotCheck'), () => {
+  batch.mode = batch.mode === 'spot' ? 'pending' : 'spot';
+  return loadBatch();
+});
+$('batchDiscarded').onclick = () => withBusy($('batchDiscarded'), () => {
+  batch.mode = batch.mode === 'rejected' ? 'pending' : 'rejected';
+  return loadBatch();
+});
+$('batchPromoteWeek').onclick = () => withBusy($('batchPromoteWeek'), async () => {
+  // "Upcoming week": Monday of (today + 2 days) — on Sat/Sun that's next
+  // week's Monday, from Monday on it's the running week.
+  const d = new Date(Date.now() + 2 * 864e5);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  const week = d.toISOString().slice(0, 10);
+  if (!confirm(t('promote_week_confirm', fmtDE(week)))) return;
+  const { data, error } = await supabase.functions.invoke('flyer-promote', { body: { week_start: week } });
+  if (error || !data || !data.ok) { toast(t('promote_fail', (error && error.message) || (data && data.error) || '?'), 'error'); return; }
+  toast(t('promote_ok', data.promoted), 'success');
+});
+$('batchApproveAll').onclick = () => withBusy($('batchApproveAll'), async () => {
+  const pend = batch.items.filter(o => o.status === 'pending');
+  if (!pend.length) { toast(t('batch_empty'), 'info'); return; }
+  if (!confirm(t('batch_confirm_all', pend.length))) return;
+  const { error } = await supabase.from('flyer_offers_staged').update({ status: 'approved' }).in('id', pend.map(o => o.id));
+  if (error) { dbErr('err_bulk', error); return; }
+  pend.forEach(o => { o.status = 'approved'; });
+  renderBatch();
+});
+
+/* ================= wochen-review ================= */
+/* Eine Woche, EIN durchgehender Review-Strom: alle offenen (pending) Angebote
+   der Woche mit Anomalie-Flags — gruppiert nach Prospekt, mit Seitenbild-
+   Thumbnail (review-pages/-Fallback des Fetchers bzw. pdf.js-Render bei
+   Storage-PDFs). Labels dieses Tabs sind bewusst Deutsch-only. */
+const wk = {
+  week: null,
+  offers: [],        // ALLE pending-Angebote der Woche (für Sammel-Freigabe)
+  flagged: [],       // davon: auffällige (Anzeige)
+  flyerById: {},
+  pdfDocs: new Map(), // flyer_id -> Promise<pdfjs doc|null> für Storage-PDFs
+  loading: false, loadedWeek: null,
+};
+
+/* „Sauber“/„auffällig“ folgt der Basis-Semantik des Review-Tabs: entscheidend
+   sind allein die Anomalie-Flags (Ziffern-Check ODER Konsens/%-Mathe können
+   verifizieren — siehe verifyBadge; digit_check_passed allein würde raster-/
+   konsens-verifizierte Angebote fälschlich ausschließen). */
+const wkIsFlagged = (o) => Array.isArray(o.anomalies) && o.anomalies.length > 0;
+const wkIsClean = (o) => o.status === 'pending' &&
+  (!Array.isArray(o.anomalies) || o.anomalies.length === 0);
+
+function initWochenTab() {
+  populateWkWeekSelector();
+  if (wk.week && wk.loadedWeek !== wk.week) loadWochen();
+}
+
+function populateWkWeekSelector() {
+  const weeks = [...new Set(state.flyers.map(f => f.week_start).filter(Boolean))].sort().reverse();
+  if (!wk.week || !weeks.includes(wk.week)) wk.week = weeks[0] || null;
+  $('wkWeekSel').innerHTML = weeks.map(w =>
+    `<option value="${escAttr(w)}"${w === wk.week ? ' selected' : ''}>` +
+    `KW ${isoWeek(new Date(w + 'T12:00:00'))} · ab ${fmtDE(w)}</option>`).join('') ||
+    '<option value="">– keine Wochen –</option>';
+}
+
+$('wkWeekSel').addEventListener('change', () => { wk.week = $('wkWeekSel').value || null; loadWochen(); });
+$('wkRefresh').onclick = () => withBusy($('wkRefresh'), () => loadWochen());
+
+async function loadWochen() {
+  if (wk.loading || !wk.week) return;
+  wk.loading = true;
+  try {
+    $('wkWrap').innerHTML = `<p class="muted">${t('loading')}</p>`;
+    loadWkChainStats(); // läuft parallel; eigene Fehlerbehandlung
+    const flyers = state.flyers.filter(f => f.week_start === wk.week);
+    wk.flyerById = Object.fromEntries(flyers.map(f => [f.id, f]));
+    const ids = flyers.map(f => f.id);
+    const offers = [];
+    for (let i = 0; i < ids.length; i += 50) { // 50er-Chunks — 100+ UUIDs sprengen die GET-URL
+      const { data, error } = await supabase.from('flyer_offers_staged').select('*')
+        .in('flyer_id', ids.slice(i, i + 50)).eq('status', 'pending')
+        .order('page_number').order('tile_index');
+      if (error) {
+        dbErr('err_load_offers', error);
+        $('wkWrap').innerHTML = `<p class="bad">${t('load_fail_short')}</p>`;
+        return;
+      }
+      offers.push(...(data || []));
+    }
+    wk.offers = offers;
+    wk.flagged = offers.filter(wkIsFlagged);
+    wk.loadedWeek = wk.week;
+    renderWochen();
+  } finally { wk.loading = false; }
+}
+
+/* ---- Qualitäts-Übersicht je Kette (DB-View cms_week_chain_stats) ----
+   Kompakte Tabelle oberhalb der auffälligen Angebote: Angebote, Auto-Quote,
+   Ziffern-Fehler- und Grundpreis-Quote sowie offene (pending) Angebote je
+   Retailer der gewählten Woche. Prozentwerte werden clientseitig berechnet. */
+async function loadWkChainStats() {
+  const week = wk.week;
+  if (!week) { $('wkStatsWrap').innerHTML = ''; return; }
+  $('wkStatsWrap').innerHTML = '<div class="card"><p class="muted" style="margin:0">Lade Qualitäts-Übersicht…</p></div>';
+  const { data, error } = await supabase.from('cms_week_chain_stats').select('*').eq('week_start', week);
+  if (week !== wk.week) return; // Woche wurde inzwischen gewechselt
+  if (error) { toast('Qualitäts-Übersicht laden: ' + (error.message || error), 'error'); $('wkStatsWrap').innerHTML = ''; return; }
+  if (!data || !data.length) { $('wkStatsWrap').innerHTML = ''; return; }
+  const pct = (n, d) => d > 0 ? (100 * (n || 0) / d).toFixed(1).replace('.', ',') + ' %' : '–';
+  const rows = [...data].sort((a, b) => (b.offers || 0) - (a.offers || 0)).map(r => `<tr>
+      <td class="nowrap"><strong>${esc(RETAILER_LABEL[r.retailer_id] || r.retailer_id)}</strong></td>
+      <td>${r.offers ?? 0}</td>
+      <td>${pct(r.auto_approved, r.offers)}</td>
+      <td>${pct(r.digit_failed, r.offers)}</td>
+      <td>${pct(r.gp_mismatch, r.offers)}</td>
+      <td>${(r.pending ?? 0) > 0 ? `<span class="chip st-pending">${r.pending}</span>` : '<span class="muted">0</span>'}</td>
+    </tr>`).join('');
+  $('wkStatsWrap').innerHTML = `<div class="card" style="overflow-x:auto">
+    <h3 style="font-size:13px">Qualität je Kette</h3>
+    <table class="list">
+      <tr><th>Kette</th><th>Angebote</th><th>Auto %</th><th>Ziffern-Fehler %</th><th>Grundpreis %</th><th>Offen</th></tr>
+      ${rows}</table>
+  </div>`;
+}
+
+function renderWkCounts() {
+  const open = wk.flagged.filter(o => o.status === 'pending').length;
+  const clean = wk.offers.filter(wkIsClean).length;
+  $('wkCounts').innerHTML =
+    `<span class="chip st-pending">${open} auffällig offen</span> ` +
+    `<span class="chip st-approved">${clean} saubere offen</span>`;
+}
+
+function wkRowHTML(o) {
+  const anoms = Array.isArray(o.anomalies) ? o.anomalies : [];
+  const fld = (label, f, val, cls = '') =>
+    `<label class="fld ${cls}">${label}<input data-f="${f}" type="text" value="${escAttr(val)}"></label>`;
+  const num = (label, f, val) =>
+    `<label class="fld">${label}<input data-f="${f}" type="number" step="0.01" value="${val == null ? '' : escAttr(val)}"></label>`;
+  return `<div class="wk-row" data-oid="${escAttr(o.id)}" data-fid="${escAttr(o.flyer_id)}" data-page="${o.page_number ?? ''}">
+    <div class="wk-thumb" data-thumb title="Seitenbild in groß öffnen">Seite ${o.page_number ?? '?'}</div>
+    <div class="wk-main">
+      <div class="offer-head">
+        <span class="chip st-${escAttr(o.status)}" data-status-chip>${esc(statusLabel(o.status))}</span>
+        <span class="muted small">Seite ${o.page_number ?? '?'}</span>
+        ${verifyBadge(o, anoms)}
+        ${anoms.map(a => `<span class="chip chip-anom" title="${escAttr(a)}">${esc(flagLabel(a))}</span>`).join('')}
+        <span class="spacer"></span>
+        <span class="muted small nowrap">Konf. ${o.confidence == null ? '–' : Number(o.confidence).toFixed(2)}</span>
+      </div>
+      <div class="fgrid">
+        ${fld('Titel', 'title', o.title, 'w2')}
+        ${fld('Marke', 'brand', o.brand)}
+        ${num('Preis €', 'price_eur', o.price_eur)}
+        ${num('Alter Preis €', 'old_price_eur', o.old_price_eur)}
+        ${fld('Packung', 'pack_text', o.pack_text)}
+      </div>
+      <div class="offer-actions">
+        <button class="btn btn-xs" data-act="save">${esc(t('save'))}</button>
+        <button class="btn btn-xs btn-approve" data-act="approve">${esc(t('approve'))}</button>
+        <button class="btn btn-xs btn-danger" data-act="reject">${esc(t('reject'))}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderWochen() {
+  renderWkCounts();
+  if (!wk.flagged.length) {
+    $('wkWrap').innerHTML = '<div class="card"><p class="muted" style="margin:0">Keine auffälligen offenen Angebote in dieser Woche.</p></div>';
+    return;
+  }
+  const groups = new Map();
+  for (const o of wk.flagged) {
+    if (!groups.has(o.flyer_id)) groups.set(o.flyer_id, []);
+    groups.get(o.flyer_id).push(o);
+  }
+  const label = (fid) => {
+    const f = wk.flyerById[fid];
+    return `${RETAILER_LABEL[f?.retailer_id] || f?.retailer_id || '?'} · ${f?.title || '?'}`;
+  };
+  const sorted = [...groups.entries()].sort((a, b) => label(a[0]).localeCompare(label(b[0]), 'de'));
+  $('wkWrap').innerHTML = sorted.map(([fid, offers]) =>
+    `<div class="wk-flyer-head"><h3>${esc(label(fid))}</h3>` +
+    `<span class="chip chip-warn">${offers.length} auffällig</span></div>` +
+    offers.map(wkRowHTML).join('')).join('');
+  hydrateWkThumbs();
+}
+
+/* ---- thumbnails: lazy per sichtbarem Element, dedupliziert über pageImgCache ---- */
+let wkObserver = null;
+function hydrateWkThumbs() {
+  wkObserver?.disconnect();
+  wkObserver = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      if (!en.isIntersecting) continue;
+      wkObserver.unobserve(en.target);
+      loadWkThumb(en.target);
+    }
+  }, { rootMargin: '500px' });
+  document.querySelectorAll('#wkWrap .wk-thumb').forEach(el => wkObserver.observe(el));
+}
+
+function wkPageImage(f, page) {
+  if (!f) return Promise.resolve(null);
+  // Storage-PDF vorhanden -> pdf.js-Render (wie im Review-Tab), sonst der
+  // review-pages/-Fallback des Fetchers.
+  if (!f.pdf_path) return pageImageUrl(f.external_id, page);
+  const key = 'pdf|' + f.id + '|' + page;
+  if (!pageImgCache.has(key)) pageImgCache.set(key, renderStoredPdfPageImage(f, page).catch(() => null));
+  return pageImgCache.get(key);
+}
+
+async function renderStoredPdfPageImage(f, page) {
+  if (!wk.pdfDocs.has(f.id)) {
+    wk.pdfDocs.set(f.id, supabase.storage.from('flyers').download(f.pdf_path)
+      .then(async ({ data, error }) => {
+        if (error) return null;
+        const buf = await data.arrayBuffer();
+        return await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+      })
+      .catch(() => null));
+  }
+  const doc = await wk.pdfDocs.get(f.id);
+  if (!doc || !page || page > doc.numPages) return null;
+  const p = await doc.getPage(page);
+  const base = p.getViewport({ scale: 1 });
+  const vp = p.getViewport({ scale: 1000 / base.width });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+  await p.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  return canvas.toDataURL('image/jpeg', 0.8);
+}
+
+async function loadWkThumb(el) {
+  const row = el.closest('.wk-row');
+  const url = await wkPageImage(wk.flyerById[row.dataset.fid], parseInt(row.dataset.page, 10));
+  if (url) el.innerHTML = `<img src="${escAttr(url)}" alt="Seite ${escAttr(row.dataset.page)}" loading="lazy">`;
+  else el.textContent = 'Kein PDF/Seitenbild';
+}
+
+$('lightbox').addEventListener('click', () => {
+  $('lightbox').hidden = true;
+  $('lightboxImg').removeAttribute('src');
+});
+
+$('wkWrap').addEventListener('click', async (e) => {
+  const thumb = e.target.closest('.wk-thumb');
+  if (thumb) {
+    const row = thumb.closest('.wk-row');
+    const url = await wkPageImage(wk.flyerById[row.dataset.fid], parseInt(row.dataset.page, 10));
+    if (url) { $('lightboxImg').src = url; $('lightbox').hidden = false; }
+    else toast('Kein Seitenbild für diese Seite verfügbar.', 'info');
+    return;
+  }
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const row = btn.closest('.wk-row');
+  const oid = row.dataset.oid;
+  const offer = wk.offers.find(o => o.id === oid);
+  if (!offer) return;
+
+  if (btn.dataset.act === 'save') {
+    // Gleiche Semantik wie der Offer-Editor im Review-Tab (edited-Flag,
+    // Zahlfelder validiert, leere Strings -> null).
+    const payload = { edited: true };
+    let invalid = null;
+    row.querySelectorAll('[data-f]').forEach(el => {
+      const f = el.dataset.f;
+      const v = el.value.trim();
+      if (NUM_FIELDS.includes(f)) {
+        if (v === '') payload[f] = null;
+        else { const n = Number(v); if (Number.isNaN(n)) invalid = f; else payload[f] = n; }
+      } else {
+        payload[f] = v === '' ? null : v;
+      }
+    });
+    if (invalid) { toast(t('toast_invalid_num', invalid), 'error'); return; }
+    await withBusy(btn, async () => {
+      const { error } = await supabase.from('flyer_offers_staged').update(payload).eq('id', oid);
+      if (error) { dbErr('err_save', error); return; }
+      Object.assign(offer, payload);
+      toast(t('toast_saved'), 'success', 2500);
+    });
+  }
+  else if (btn.dataset.act === 'approve' || btn.dataset.act === 'reject') {
+    const status = btn.dataset.act === 'approve' ? 'approved' : 'rejected';
+    await withBusy(btn, async () => {
+      const { error } = await supabase.from('flyer_offers_staged').update({ status }).eq('id', oid);
+      if (error) { dbErr(status === 'approved' ? 'err_approve' : 'err_reject', error); return; }
+      offer.status = status;
+      const chip = row.querySelector('[data-status-chip]');
+      if (chip) { chip.className = 'chip st-' + status; chip.textContent = statusLabel(status); }
+      row.classList.add('done');
+      renderWkCounts();
+    });
+  }
+});
+
+/* Wochen-Sammel-Freigabe — gleiche Semantik wie „Alle sauberen auf Seite
+   freigeben“ im Review-Tab (pending + keine Anomalie-Flags), nur über ALLE
+   Prospekte der Woche. */
+$('wkApproveClean').onclick = () => withBusy($('wkApproveClean'), async () => {
+  if (!wk.week) { toast('Keine Woche gewählt.', 'info'); return; }
+  if (wk.loadedWeek !== wk.week) await loadWochen();
+  const clean = wk.offers.filter(wkIsClean);
+  if (!clean.length) { toast('Keine sauberen offenen Angebote in dieser Woche.', 'info'); return; }
+  if (!confirm(`${clean.length} saubere Angebote der Woche ab ${fmtDE(wk.week)} freigeben?`)) return;
+  for (let i = 0; i < clean.length; i += 200) {
+    const chunk = clean.slice(i, i + 200);
+    const { error } = await supabase.from('flyer_offers_staged')
+      .update({ status: 'approved' }).in('id', chunk.map(o => o.id));
+    if (error) { dbErr('err_bulk', error); return; }
+    chunk.forEach(o => { o.status = 'approved'; });
+  }
+  toast(t('toast_bulk_ok', clean.length), 'success');
+  renderWkCounts();
 });
 
 /* ================= konfiguration ================= */
